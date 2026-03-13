@@ -2185,8 +2185,12 @@ def jellyfin_catch_all(path):
     if host == "jellyfin.meduseld.io":
         return jellyfin_proxy(path)
 
-    # For other subdomains, redirect to home
-    if host in ["panel.meduseld.io", "ssh.meduseld.io", "health.meduseld.io"]:
+    # For ssh and health subdomains, redirect to home
+    if host in ["ssh.meduseld.io", "health.meduseld.io"]:
+        return redirect("/")
+
+    # For panel subdomain, let the home route handle it
+    if host == "panel.meduseld.io":
         return redirect("/")
 
     # Otherwise 404
