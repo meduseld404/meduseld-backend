@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Check if commitlint is installed
+if ! command -v npx >/dev/null 2>&1; then
+  echo "⚠️  Warning: npx not found. Please install Node.js and run 'npm install'"
+  exit 1
+fi
+
+if [ ! -d "node_modules/@commitlint" ]; then
+  echo "⚠️  Warning: commitlint not installed. Please run 'npm install' first"
+  exit 1
+fi
+
+npx --no -- commitlint --edit ${1}
