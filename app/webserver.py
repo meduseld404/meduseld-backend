@@ -1203,6 +1203,54 @@ def start():
         logger.info("Dummy server 'started' (simulated via URL parameter)")
         return "", 204
 
+    # Check if update is available before starting
+    update_available = check_for_updates()
+
+    if update_available:
+        logger.info("Update available - running update before starting server")
+        # Run update script before launching
+        if os.path.exists(UPDATE_SCRIPT):
+            try:
+                global last_update_status, last_update_time, last_update_output, current_build_id
+
+                logger.info("Running update script")
+                result = subprocess.run(
+                    [UPDATE_SCRIPT],
+                    cwd=SERVER_DIR,
+                    shell=True,
+                    timeout=UPDATE_TIMEOUT,
+                    capture_output=True,
+                    text=True,
+                )
+
+                last_update_time = time.time()
+                last_update_output = result.stdout + "\n" + result.stderr
+
+                if result.returncode == 0:
+                    last_update_status = "success"
+                    logger.info("Update script completed successfully")
+
+                    # Update the stored build ID after successful update
+                    new_build = get_latest_build_id()
+                    if new_build:
+                        save_current_build_id(new_build)
+                        current_build_id = new_build
+                else:
+                    last_update_status = f"failed (exit code {result.returncode})"
+                    logger.error(f"Update script failed: {last_update_status}")
+
+            except subprocess.TimeoutExpired:
+                last_update_status = "timeout"
+                last_update_time = time.time()
+                logger.error("Update script timed out")
+            except Exception as e:
+                last_update_status = f"error: {str(e)}"
+                last_update_time = time.time()
+                logger.error(f"Update script error: {e}")
+
+        # Wait a moment after update
+        time.sleep(2)
+
     launch_server()
 
     def wait():

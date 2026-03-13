@@ -350,17 +350,17 @@
         if (data.health === 'good') {
           healthBadge.innerHTML = `
       <span class="badge rounded-pill px-3 py-2 bg-success" title="System resources are within normal limits">
-        ⚔ Health: <span style="color: #5cb85c; font-weight: bold;">Good</span>
+        <i class="cil-check-circle"></i> Health: <span style="color: #5cb85c; font-weight: bold;">Good</span>
       </span>`;
         } else if (data.health === 'warning') {
           healthBadge.innerHTML = `
       <span class="badge rounded-pill px-3 py-2 bg-warning text-dark" title="CPU, RAM, or disk usage is approaching limits (80%+)">
-        ⚠ Health: <span style="color: #ff9800; font-weight: bold;">Warning</span>
+        <i class="cil-warning"></i> Health: <span style="color: #ff9800; font-weight: bold;">Warning</span>
       </span>`;
         } else {
           healthBadge.innerHTML = `
       <span class="badge rounded-pill px-3 py-2 bg-danger" title="CPU, RAM, or disk usage is critically high (95%+)">
-        ☠ Health: <span style="color: #ff4444; font-weight: bold;">Critical</span>
+        <i class="cil-x-circle"></i> Health: <span style="color: #ff4444; font-weight: bold;">Critical</span>
       </span>`;
         }
       }
@@ -373,15 +373,15 @@
         const tooltipParts = [gameVersion, buildInfo].filter((p) => p).join(' | ');
 
         if (data.version.update_available) {
-          const updateTooltip = `Current Build: ${data.version.current || 'Unknown'} | Latest Build: ${data.version.latest || 'Unknown'}${gameVersion ? ' | ' + gameVersion : ''}`;
+          const updateTooltip = `Current Build: ${data.version.current || 'Unknown'} | Latest Build: ${data.version.latest || 'Unknown'}${gameVersion ? ' | ' + gameVersion : ''} | Click to update and restart`;
           updateBadge.innerHTML = `
-      <span class="badge rounded-pill px-3 py-2 text-white" style="background-color: #4a90e2;" title="${updateTooltip}">
-        🔄 Update Available
+      <span class="badge rounded-pill px-3 py-2 text-white" style="background-color: #4a90e2; cursor: pointer;" title="${updateTooltip}" onclick="action('/restart')">
+        <i class="cil-cloud-download"></i> Update Available (Click to Update)
       </span>`;
         } else if (data.version.current && data.version.latest) {
           updateBadge.innerHTML = `
       <span class="badge rounded-pill px-3 py-2 text-white" style="background-color: #1f4d2b;" title="${tooltipParts || 'Up to date'}">
-        ✓ Up to Date
+        <i class="cil-check"></i> Up to Date
       </span>`;
         } else {
           updateBadge.innerHTML = '';
