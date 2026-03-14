@@ -41,7 +41,6 @@ else:
     LOG_FILE = f"{SERVER_DIR}/icarus.log"
     UPDATE_SCRIPT = f"{SERVER_DIR}/updateserver.sh"
     VERSION_FILE = f"{SERVER_DIR}/version.txt"
-    VERSION_FILE = f"{SERVER_DIR}/version.txt"
 
 # Steam App ID for Icarus Dedicated Server
 STEAM_APP_ID = "2089300"
