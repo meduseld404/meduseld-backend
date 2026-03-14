@@ -373,6 +373,6 @@ Ask in the group chat or check the code - it's pretty straightforward. Most of t
 
 ## Version
 
-Current version: **0.3.0-alpha** (see CHANGELOG.md for details)
+Current version: **0.5.0-alpha** (see CHANGELOG.md for details)
 
 This is an alpha release - we're still testing everything!

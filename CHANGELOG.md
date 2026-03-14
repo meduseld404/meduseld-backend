@@ -2,6 +2,44 @@
 
 All notable changes to the Meduseld Server Control Panel project.
 
+## [0.5.0-alpha] - 2026-03-14
+
+### New Features
+
+- **Standalone Reboot Microservice**: New microservice on port 5002 for remote server reboots, independent of the main Flask app
+- **Standalone Backup Microservice**: New microservice on port 5003 for triggering game save backups to Google Drive via systemd
+- **Health Subdomain Proxy**: `health.meduseld.io/check/backup`, `/check/backup-status`, and `/check/reboot` now proxy to the standalone microservices
+- **System Logs on Health Subdomain**: Moved system logs endpoint to `health.meduseld.io/check/system-logs` for public access
+- **Idle Shutdown**: Server automatically shuts down after 15 minutes with 0 players online
+- **Backup Dropdown Menu**: Consolidated backup buttons into a dropdown with "Download Backup" and "Backup to Cloud" options
+- **Google Drive OAuth**: PKCE code_verifier persistence across OAuth flow for cloud backups
+- **Snowmane SSH Access**: Added `snowmane.meduseld.io` to allowed hosts for SSH
+
+### Bug Fixes
+
+- **Restored Templates**: Recovered accidentally deleted `terminal.html` and `health.html` templates
+- **Fixed Google Client Secret**: Removed hardcoded secret from config, now uses environment variable only
+- **Fixed PKCE OAuth Flow**: Persist code_verifier across Google OAuth redirect for cloud backup
+- **Fixed Public System Logs**: Added `/api/server-logs` endpoint that bypasses Cloudflare Access
+- **Fixed journalctl Fallback**: Use journalctl when syslog file is unreadable
+- **Removed Trivia Button**: Removed accidental trivia button from panel nav
+- **Fixed Mobile Nav**: Improved header button layout and gap spacing on mobile
+- **Fixed Dead Code**: Removed unused files and fixed dead code references
+
+### UI/UX Improvements
+
+- **SSH Commands Cheat Sheet**: Added detailed descriptions to all commands in the help modal
+- **Improved Text Readability**: Better contrast in SSH commands modal
+- **Bootstrap Icons Migration**: Replaced CoreUI icons with Bootstrap Icons throughout
+
+### Configuration & Infrastructure
+
+- **Removed Docker References**: Cleaned up deploy script and steering docs, removed Docker hostnames from nginx config
+- **Removed Unused Nginx Config**: Cleaned up unused configuration files
+- **Commitlint Enforcement**: Added commit message validation with git hooks
+- **Steering Documentation**: Added page functionality reference and updated deployment docs with systemd details
+- **Apple Touch Icon**: Updated icon styling for iOS glass theme
+
 ## [0.4.0-alpha] - 2026-03-13
 
 ### Bug Fixes
@@ -72,13 +110,6 @@ All notable changes to the Meduseld Server Control Panel project.
 - **Health Badge**: Color-coded text (Good=green, Warning=orange, Critical=red)
 - **Log Separators**: Color-coded separators in game server logs for version changes, restarts, stops
 
-#### service Page Updates
-
-- **VPN Access Card**: Added coming soon card for OpenVPN integration
-- **Game Prices**: Shows Steam prices with sale badges and discount percentages
-- **Production Badge**: Changed text color to white for better visibility
-- **News Badge Click**: Fixed to not toggle panel when clicking badge tooltip
-
 #### SSH Terminal Page
 
 - **Mobile Responsive**: Fixed button layout on mobile devices
@@ -105,7 +136,7 @@ All notable changes to the Meduseld Server Control Panel project.
 
 #### New Services
 
-- **service Page** (services.meduseld.io): Central hub for all services with status indicators
+- **Service Page** (services.meduseld.io): Central hub for all services with status indicators
 - **Health Monitoring** (health.meduseld.io): Dedicated health check system with Cloudflare Worker
 - **Jellyfin Integration** (jellyfin.meduseld.io): Media streaming proxy through Flask app
 - **User Profiles**: Discord-based user profile system with authentication state
