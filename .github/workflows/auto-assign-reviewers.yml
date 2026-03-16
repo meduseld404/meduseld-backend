@@ -6,6 +6,7 @@ on:
 
 permissions:
   pull-requests: write
+  contents: read
 
 jobs:
   assign:
@@ -17,11 +18,12 @@ jobs:
             const { data: collaborators } = await github.rest.repos.listCollaborators({
               owner: context.repo.owner,
               repo: context.repo.repo,
+              affiliation: 'all',
             });
 
             const prAuthor = context.payload.pull_request.user.login;
             const reviewers = collaborators
-              .filter(c => c.login !== prAuthor && c.permissions.push)
+              .filter(c => c.login !== prAuthor)
               .map(c => c.login);
 
             if (reviewers.length > 0) {
