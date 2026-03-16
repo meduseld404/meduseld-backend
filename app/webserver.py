@@ -29,6 +29,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+import jwt
 
 # Get the directory where this script is located
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -50,6 +51,7 @@ def add_cors_headers(response):
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
     return response
 
 
@@ -99,6 +101,14 @@ except ImportError as e:
 
 # Set Flask secret key for sessions (required for OAuth)
 app.secret_key = SECRET_KEY
+
+# ================= DATABASE =================
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+from database import init_db
+
+init_db(app)
 
 # ================= LOGGING =================
 
@@ -325,6 +335,215 @@ def validate_host():
         return
 
     abort(403)
+
+
+# ================= AUTHENTICATION =================
+
+# Paths that don't require authentication
+PUBLIC_PATHS = [
+    "/health",
+    "/health-check-b8f3a9c2",
+    "/api/check-service/",
+]
+
+# Hosts that don't require authentication
+PUBLIC_HOSTS = [
+    "health.meduseld.io",
+]
+
+
+def get_current_user():
+    """Get the current user from the session, or None if not logged in."""
+    user_data = session.get("user")
+    if not user_data:
+        return None
+    from models import User
+
+    return User.query.filter_by(discord_id=str(user_data["discord_id"])).first()
+
+
+@app.before_request
+def authenticate_request():
+    """
+    Check for a valid Cf-Access-Jwt-Assertion header from Cloudflare Access.
+    On authenticated pages, decode the JWT, get_or_create the user, and store in session + g.
+    Public paths and health endpoints are skipped.
+    """
+    host = request.host.split(":")[0]
+
+    # Skip auth for public hosts
+    if host in PUBLIC_HOSTS:
+        return
+
+    # Skip auth for public paths
+    for path in PUBLIC_PATHS:
+        if request.path.startswith(path):
+            return
+
+    # Skip auth for OPTIONS preflight requests
+    if request.method == "OPTIONS":
+        return
+
+    # If user is already in session, load them into g
+    if "user" in session:
+        g.user = get_current_user()
+        return
+
+    # Check for Cloudflare Access JWT
+    cf_token = request.headers.get("Cf-Access-Jwt-Assertion")
+    if not cf_token:
+        # No token and no session — in production this means Cloudflare Access
+        # hasn't authenticated yet. The request shouldn't reach here if
+        # Cloudflare Access is configured correctly, but just in case:
+        if IS_DEV:
+            # In dev mode, create a fake dev user
+            from models import User
+
+            user = User.get_or_create(
+                discord_id="dev_user_000",
+                username="dev_user",
+                display_name="Development User",
+            )
+            session["user"] = user.to_dict()
+            g.user = user
+            return
+        # In production, let the request through — Cloudflare Access handles gating.
+        # The user just won't have a session/user object.
+        g.user = None
+        return
+
+    # Decode the Cloudflare Access JWT
+    try:
+        # Cloudflare Access JWTs are signed with RS256 but we can decode
+        # the payload without verification since Cloudflare Access already
+        # validated the token before forwarding the request to our origin.
+        payload = jwt.decode(cf_token, options={"verify_signature": False})
+
+        # Log the full JWT payload so we can see what Cloudflare sends
+        logger.info(f"CF Access JWT claims: {json.dumps(payload, default=str)}")
+
+        # Extract what we can from the Cloudflare Access JWT
+        email = payload.get("email", "")
+        # Cloudflare Access uses its own UUID as 'sub', not the Discord ID
+        cf_user_id = payload.get("sub", "")
+
+        # The custom OIDC claims (discord_user) are NOT passed through
+        # in the Cf-Access-Jwt-Assertion header. They're only available
+        # via the /cdn-cgi/access/get-identity endpoint from the browser.
+        # So we use email as the initial identifier, and the client-side
+        # auth.js will call /api/sync-identity with the full Discord data.
+
+        # Use preferred_username or email-derived username as fallback
+        username = payload.get("preferred_username", "") or (
+            email.split("@")[0] if email else "unknown"
+        )
+        display_name = payload.get("name", "") or username
+
+        # For now, use the Cloudflare UUID as discord_id — it will be
+        # updated when the client calls /api/sync-identity with real data
+        discord_id = cf_user_id
+
+        if not discord_id:
+            logger.warning("JWT decoded but no user identifier found in claims")
+            g.user = None
+            return
+
+        from models import User
+
+        user = User.get_or_create(
+            discord_id=discord_id,
+            username=username,
+            display_name=display_name,
+            email=email,
+        )
+
+        session["user"] = user.to_dict()
+        g.user = user
+        logger.info(f"Authenticated user: {username} ({discord_id})")
+
+    except Exception as e:
+        logger.error(f"Error decoding Cloudflare Access JWT: {e}")
+        g.user = None
+
+
+def require_auth(f):
+    """Decorator to require an authenticated user. Returns 401 if no user in session."""
+
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not hasattr(g, "user") or g.user is None:
+            return jsonify({"error": "Authentication required"}), 401
+        return f(*args, **kwargs)
+
+    return decorated
+
+
+def require_role(role):
+    """Decorator to require a specific role. Use after @require_auth."""
+
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if not hasattr(g, "user") or g.user is None:
+                return jsonify({"error": "Authentication required"}), 401
+            if g.user.role != role and g.user.role != "admin":
+                return jsonify({"error": "Insufficient permissions"}), 403
+            return f(*args, **kwargs)
+
+        return decorated
+
+    return decorator
+
+
+@app.route("/api/me")
+def api_me():
+    """Return the current authenticated user's info."""
+    if not hasattr(g, "user") or g.user is None:
+        return jsonify({"authenticated": False}), 200
+    return jsonify({"authenticated": True, "user": g.user.to_dict()}), 200
+
+
+@app.route("/api/sync-identity", methods=["POST"])
+def api_sync_identity():
+    """
+    Called by client-side auth.js with Discord user data from the
+    Cloudflare Access /cdn-cgi/access/get-identity endpoint.
+    Updates the user's DB record with real Discord ID, username, and avatar.
+    """
+    data = request.get_json()
+    if not data or not data.get("discord_id"):
+        return jsonify({"error": "Missing discord_id"}), 400
+
+    # We need a session user to know which DB record to update
+    user_data = session.get("user")
+    if not user_data:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    from models import User
+    from database import db
+
+    user = User.query.filter_by(discord_id=str(user_data["discord_id"])).first()
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    # Update with real Discord data
+    old_discord_id = user.discord_id
+    user.discord_id = str(data["discord_id"])
+    user.username = data.get("username", user.username)
+    user.display_name = data.get("display_name", user.display_name)
+    user.avatar_hash = data.get("avatar_hash", user.avatar_hash)
+
+    try:
+        db.session.commit()
+        session["user"] = user.to_dict()
+        logger.info(
+            f"Synced Discord identity: {old_discord_id} -> {user.discord_id} ({user.username})"
+        )
+        return jsonify({"synced": True, "user": user.to_dict()}), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error syncing identity: {e}")
+        return jsonify({"error": "Sync failed"}), 500
 
 
 # ================= SERVER CONTROL =================
@@ -1069,7 +1288,9 @@ def monitor_server():
                         idle_since = time.time()
                         logger.info("Idle shutdown: Server has 0 players, starting idle timer")
                     elif time.time() - idle_since >= IDLE_SHUTDOWN_MINUTES * 60:
-                        logger.warning(f"Idle shutdown: Server empty for {IDLE_SHUTDOWN_MINUTES} min, stopping")
+                        logger.warning(
+                            f"Idle shutdown: Server empty for {IDLE_SHUTDOWN_MINUTES} min, stopping"
+                        )
                         idle_since = None
                         set_server_state("stopping")
                         kill_server()
@@ -2120,7 +2341,9 @@ def api_server_logs():
         try:
             result = subprocess.run(
                 ["journalctl", "--no-pager", "-n", str(lines)],
-                capture_output=True, text=True, timeout=10
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             if result.returncode == 0 and result.stdout.strip():
                 logs = [line for line in result.stdout.strip().split("\n")]
@@ -2129,7 +2352,10 @@ def api_server_logs():
             pass
 
         return jsonify(
-            {"logs": [], "error": "Cannot read system logs. Add vertebra to adm group: sudo usermod -aG adm vertebra"}
+            {
+                "logs": [],
+                "error": "Cannot read system logs. Add vertebra to adm group: sudo usermod -aG adm vertebra",
+            }
         )
     except PermissionError as e:
         logger.error(f"Permission denied reading system logs: {e}")
