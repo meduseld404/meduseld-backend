@@ -94,12 +94,17 @@ Each active service card has a status indicator badge that shows Online/Offline/
 
 Static display of hardware specs: AMD Ryzen 7 2700, 32GB DDR4 3600, RTX 3060, 1TB NVMe SSD, GIGABYTE B550M K, ARCTIC Liquid Freezer III Pro 240, JONSBO Z20 case, Ubuntu Server 24.04
 
-### Quick Links Bar (Admin only — hidden for non-admin users)
+### Quick Links Bar
+
+Admin-only links (hidden for non-admin users):
 
 - Cloudflare Dashboard → `https://dash.cloudflare.com`
 - Backend Repo → `https://github.com/meduseld404/meduseld`
 - Site Repo → `https://github.com/meduseld404/meduseld-site`
 - Herugrim Repo → same as site repo link (likely needs updating)
+
+Visible to all users (always shown, displayed below admin links):
+
 - Gmail → `https://mail.google.com`
 - Drive → Google Drive backups folder
 
