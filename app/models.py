@@ -15,6 +15,8 @@ class User(db.Model):
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     last_login = db.Column(db.DateTime)
+    jellyfin_user_id = db.Column(db.String(64))
+    jellyfin_password = db.Column(db.String(256))
 
     def __repr__(self):
         return f"<User {self.username} ({self.discord_id})>"
@@ -47,20 +49,36 @@ class User(db.Model):
         """Find existing user by Discord ID (or email fallback) or create a new one.
         Updates profile info on each login."""
         user = User.query.filter_by(discord_id=str(discord_id)).first()
+        found_by_email = False
 
         # If not found by discord_id, try email — this handles the case where
         # the user was already synced with their real Discord ID but Cloudflare
         # Access sends its own UUID as the sub claim on the next login.
         if not user and email:
             user = User.query.filter_by(email=email).first()
+            found_by_email = True
 
         if user:
-            # Update profile info on each login
-            user.username = username
-            if display_name:
-                user.display_name = display_name
-            if avatar_hash:
-                user.avatar_hash = avatar_hash
+            if found_by_email:
+                # Found by email fallback — the stored discord_id is likely a
+                # stale Cloudflare UUID. Update to the real Discord ID if we
+                # have one (numeric snowflake), and update profile data.
+                if discord_id and discord_id != user.discord_id and discord_id.isdigit():
+                    user.discord_id = str(discord_id)
+                # Always update profile when we have data — the caller
+                # determines whether data is "real" or "fallback"
+                user.username = username
+                if display_name:
+                    user.display_name = display_name
+                if avatar_hash:
+                    user.avatar_hash = avatar_hash
+            else:
+                # Found by discord_id — update profile info
+                user.username = username
+                if display_name:
+                    user.display_name = display_name
+                if avatar_hash:
+                    user.avatar_hash = avatar_hash
             if email:
                 user.email = email
             user.last_login = datetime.now(timezone.utc)

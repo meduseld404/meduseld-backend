@@ -100,22 +100,24 @@ Cloudflare Worker (`worker.js`) that acts as an OIDC identity provider bridging 
 
 Table: `users`
 
-| Column       | Type        | Notes                                                                  |
-| ------------ | ----------- | ---------------------------------------------------------------------- |
-| id           | Integer     | Primary key                                                            |
-| discord_id   | String(64)  | Unique, indexed. Real Discord snowflake ID (e.g. `000000000000000000`) |
-| username     | String(128) | Discord username                                                       |
-| display_name | String(128) | Discord global_name                                                    |
-| avatar_hash  | String(256) | Discord avatar hash for CDN URL                                        |
-| email        | String(256) | Email from Cloudflare Access JWT                                       |
-| role         | String(32)  | Default `"user"`, also supports `"admin"`                              |
-| is_active    | Boolean     | Default true                                                           |
-| created_at   | DateTime    | UTC                                                                    |
-| last_login   | DateTime    | Updated on each login                                                  |
+| Column            | Type        | Notes                                                                  |
+| ----------------- | ----------- | ---------------------------------------------------------------------- |
+| id                | Integer     | Primary key                                                            |
+| discord_id        | String(64)  | Unique, indexed. Real Discord snowflake ID (e.g. `000000000000000000`) |
+| username          | String(128) | Discord username                                                       |
+| display_name      | String(128) | Discord global_name                                                    |
+| avatar_hash       | String(256) | Discord avatar hash for CDN URL                                        |
+| email             | String(256) | Email from Cloudflare Access JWT                                       |
+| role              | String(32)  | Default `"user"`, also supports `"admin"`                              |
+| is_active         | Boolean     | Default true                                                           |
+| created_at        | DateTime    | UTC                                                                    |
+| last_login        | DateTime    | Updated on each login                                                  |
+| jellyfin_user_id  | String(64)  | Jellyfin user ID, set on first Edoras login                            |
+| jellyfin_password | String(256) | Auto-generated Jellyfin password, managed by `/api/jellyfin-auth`      |
 
 Key methods:
 
-- `User.get_or_create(discord_id, username, ...)` — Looks up by `discord_id` first, falls back to `email` to prevent duplicate accounts when Cloudflare UUID changes
+- `User.get_or_create(discord_id, username, ...)` — Looks up by `discord_id` first, falls back to `email` to prevent duplicate accounts when Cloudflare UUID changes. When found by email fallback with real Discord data (indicated by avatar_hash), updates discord_id and profile. When found by email fallback without real Discord data, skips profile updates to preserve existing Discord data.
 - `user.to_dict()` — Serializes user for API responses and session storage
 - `user.avatar_url` — Property that builds Discord CDN avatar URL
 
@@ -142,7 +144,8 @@ sudo -u postgres psql -d meduseld_db -c "SELECT discord_id, username, avatar_has
 5. On Flask backend (panel.meduseld.io):
    - `authenticate_request()` middleware decodes the `Cf-Access-Jwt-Assertion` JWT
    - Fallback: if no header, decodes the `CF_Authorization` cookie instead (enables cross-origin auth from static pages)
-   - The JWT `sub` is a Cloudflare UUID (NOT the Discord ID) — custom OIDC claims are not passed through
+   - The JWT `sub` is a Cloudflare UUID (NOT the Discord ID), but custom OIDC claims ARE available under the `custom` key (including `discord_user` with real Discord ID, username, global_name, avatar, is_admin)
+   - `authenticate_request()` extracts `custom.discord_user` from the JWT when available, falling back to email-derived username if not present
    - `User.get_or_create()` creates/finds user by discord_id or email fallback
    - User stored in Flask session
 6. On static pages (services, system via meduseld-site):
@@ -163,10 +166,10 @@ sudo -u postgres psql -d meduseld_db -c "SELECT discord_id, username, avatar_has
 
 ### Important Cloudflare Access Quirks
 
-- `Cf-Access-Jwt-Assertion` header does NOT contain custom OIDC claims — only email, sub (Cloudflare UUID), iat, etc.
+- Both `Cf-Access-Jwt-Assertion` header and `CF_Authorization` cookie contain custom OIDC claims under the `custom` key, including `custom.discord_user` with full Discord profile data (id, username, global_name, avatar, is_admin)
 - `CF_Authorization` cookie is set on `.meduseld.io` domain — available across all subdomains, used as auth fallback for cross-origin API calls
-- Real Discord data is only available via `/cdn-cgi/access/get-identity` endpoint (browser-only, not server-side)
-- Discord user data lives under `identity.custom.discord_user`, NOT `identity.oidc_fields`
+- Discord user data is available both server-side (from JWT `custom.discord_user`) and client-side (from `/cdn-cgi/access/get-identity` under `identity.custom.discord_user`)
+- Discord user data lives under `custom.discord_user`, NOT `oidc_fields`
 - The Cloudflare UUID (`sub`) changes per-session, so email is used as fallback lookup to prevent duplicate user records
 
 ### Auth Files
@@ -210,6 +213,12 @@ After the first admin is set, subsequent admins can be promoted from the admin p
 - `/health`, `/health-bypass`
 - `/api/check-service/<service>`
 - Host: `health.meduseld.io`
+
+### Cloudflare Access Configuration
+
+- All subdomain apps need `options_preflight_bypass: true` to allow CORS preflight requests
+- Cross-origin API calls from static pages to `panel.meduseld.io` (e.g. `/api/me`, `/api/sync-identity`) work because the `CF_Authorization` cookie is set on `.meduseld.io` and Cloudflare Access accepts it with `options_preflight_bypass` enabled
+- The Jellyfin auto-login script avoids cross-origin issues by calling `/api/jellyfin-auth` as a same-origin request on `jellyfin.meduseld.io` — the catch-all route handles it server-side
 
 ### Dev Mode Auth
 
@@ -339,6 +348,11 @@ When the server "goes offline" after pressing start:
 - `GET /api/admin/users` - List all users with full profile data
 - `PUT /api/admin/users/<id>` - Update user role (`admin`/`user`) or active status (`true`/`false`)
 
+### Jellyfin Auto-Login
+
+- `GET /api/jellyfin-auth` - (Authenticated) Auto-provisions a Jellyfin account for the user if one doesn't exist, authenticates via the Jellyfin API, and returns `{token, user_id, server_id}`. Stores `jellyfin_user_id` and `jellyfin_password` in the users table. Handles password resets if credentials get out of sync.
+- `GET jellyfin.meduseld.io/sso-login?token=&userId=&serverId=` - Served via the Jellyfin catch-all proxy. Uses iframe-first approach: loads Jellyfin web client in a hidden iframe, waits for its ConnectionManager to initialize `jellyfin_credentials` in localStorage, then patches in `AccessToken`/`UserId` and redirects to the Jellyfin home page. Falls back to direct credential write after 15-second timeout.
+
 ## Environment Variables
 
 - `MEDUSELD_ENV`: Set to "production" in production (defaults to "production")
@@ -348,6 +362,8 @@ When the server "goes offline" after pressing start:
 - `GOOGLE_CLIENT_SECRET`: Google OAuth client secret for Drive backup (set in systemd service)
 - `GOOGLE_CLIENT_ID`: Google OAuth client ID (hardcoded fallback in config.py)
 - `OIDC_WORKER_URL`: Discord OIDC worker URL (defaults to `https://discord-oidc.404-41f.workers.dev/`)
+- `JELLYFIN_INTERNAL_URL`: Internal Jellyfin server URL (defaults to `http://localhost:8096`)
+- `JELLYFIN_API_KEY`: Jellyfin API key for auto-provisioning user accounts (generated from Jellyfin admin dashboard → API Keys)
 
 ## Python Dependencies (Key Additions)
 

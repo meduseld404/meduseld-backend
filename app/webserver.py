@@ -61,6 +61,7 @@ def add_cors_headers(response):
 # so this only helps if the request actually reaches Flask.
 @app.route("/api/me", methods=["OPTIONS"])
 @app.route("/api/sync-identity", methods=["OPTIONS"])
+@app.route("/api/jellyfin-auth", methods=["OPTIONS"])
 @app.route("/api/admin/users", methods=["OPTIONS"])
 @app.route("/api/admin/users/<int:user_id>", methods=["OPTIONS"])
 def cors_preflight(**kwargs):
@@ -117,7 +118,12 @@ except ImportError as e:
     FLASK_HOST = "0.0.0.0"
     FLASK_PORT = 5000
     FLASK_DEBUG = False
-    ev = "change-me-in-production"
+    SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "change-me-in-production")
+    DATABASE_URL = os.environ.get(
+        "DATABASE_URL", "postgresql://meduseld:meduseld@localhost:5432/meduseld_db"
+    )
+    JELLYFIN_INTERNAL_URL = os.environ.get("JELLYFIN_INTERNAL_URL", "http://localhost:8096")
+    JELLYFIN_API_KEY = os.environ.get("JELLYFIN_API_KEY", None)
 
 # Set Flask secret key for sessions (required for OAuth)
 app.secret_key = SECRET_KEY
@@ -456,21 +462,28 @@ def authenticate_request():
         # Cloudflare Access uses its own UUID as 'sub', not the Discord ID
         cf_user_id = payload.get("sub", "")
 
-        # The custom OIDC claims (discord_user) are NOT passed through
-        # in the Cf-Access-Jwt-Assertion header. They're only available
-        # via the /cdn-cgi/access/get-identity endpoint from the browser.
-        # So we use email as the initial identifier, and the client-side
-        # auth.js will call /api/sync-identity with the full Discord data.
+        # Custom OIDC claims from herugrim are available under the
+        # 'custom' key in the JWT. This contains the real Discord
+        # profile data (id, username, global_name, avatar, is_admin).
+        custom = payload.get("custom", {})
+        discord_user = custom.get("discord_user", {}) if isinstance(custom, dict) else {}
 
-        # Use preferred_username or email-derived username as fallback
-        username = payload.get("preferred_username", "") or (
-            email.split("@")[0] if email else "unknown"
-        )
-        display_name = payload.get("name", "") or username
-
-        # For now, use the Cloudflare UUID as discord_id — it will be
-        # updated when the client calls /api/sync-identity with real data
-        discord_id = cf_user_id
+        if discord_user and discord_user.get("id"):
+            # Use real Discord data from the JWT
+            discord_id = str(discord_user["id"])
+            username = discord_user.get("username", "")
+            display_name = discord_user.get("global_name", "") or username
+            avatar_hash = discord_user.get("avatar", "")
+            logger.info(f"Using Discord data from JWT: {username} ({discord_id})")
+        else:
+            # Fallback: use CF JWT fields (email-derived)
+            username = payload.get("preferred_username", "") or (
+                email.split("@")[0] if email else "unknown"
+            )
+            display_name = payload.get("name", "") or username
+            avatar_hash = None
+            discord_id = cf_user_id
+            logger.info(f"No discord_user in JWT, using fallback: {username}")
 
         if not discord_id:
             logger.warning("JWT decoded but no user identifier found in claims")
@@ -483,6 +496,7 @@ def authenticate_request():
             discord_id=discord_id,
             username=username,
             display_name=display_name,
+            avatar_hash=avatar_hash,
             email=email,
         )
 
@@ -577,6 +591,167 @@ def api_sync_identity():
         db.session.rollback()
         logger.error(f"Error syncing identity: {e}")
         return jsonify({"error": "Sync failed"}), 500
+
+
+# ================= JELLYFIN AUTH =================
+
+
+@app.route("/api/jellyfin-auth")
+@require_auth
+def api_jellyfin_auth():
+    """Auto-provision a Jellyfin account and return an auth token.
+    Creates a Jellyfin user on first access, then authenticates and redirects."""
+    return _jellyfin_auth_inner()
+
+
+def _jellyfin_auth_inner(retry=False):
+    """Inner implementation with retry support."""
+    import secrets
+    from models import User
+    from database import db
+
+    user = g.user
+    jellyfin_url = config.JELLYFIN_INTERNAL_URL
+    api_key = config.JELLYFIN_API_KEY
+
+    if not api_key:
+        return jsonify({"error": "Jellyfin integration not configured"}), 503
+
+    jf_headers = {"X-Emby-Token": api_key}
+    display_name = user.display_name or user.username
+    jf_username = None  # The actual Jellyfin username (may differ in case)
+
+    try:
+        # If we don't have a Jellyfin user ID stored, try to find or create one
+        if not user.jellyfin_user_id:
+            # Search for existing Jellyfin user by name (case-insensitive)
+            resp = requests.get(f"{jellyfin_url}/Users", headers=jf_headers, timeout=10)
+            resp.raise_for_status()
+            jf_users = resp.json()
+
+            existing = next(
+                (u for u in jf_users if u["Name"].lower() == display_name.lower()), None
+            )
+
+            if existing:
+                # Found existing user — store their ID and use their actual username
+                user.jellyfin_user_id = existing["Id"]
+                jf_username = existing["Name"]
+                # Generate a new password and reset it
+                new_pw = secrets.token_urlsafe(24)
+                requests.post(
+                    f"{jellyfin_url}/Users/{existing['Id']}/Password",
+                    headers={**jf_headers, "Content-Type": "application/json"},
+                    json={"NewPw": new_pw},
+                    timeout=10,
+                )
+                user.jellyfin_password = new_pw
+                db.session.commit()
+            else:
+                # Create new Jellyfin user
+                new_pw = secrets.token_urlsafe(24)
+                resp = requests.post(
+                    f"{jellyfin_url}/Users/New",
+                    headers={**jf_headers, "Content-Type": "application/json"},
+                    json={"Name": display_name, "Password": new_pw},
+                    timeout=10,
+                )
+                resp.raise_for_status()
+                jf_user = resp.json()
+                user.jellyfin_user_id = jf_user["Id"]
+                jf_username = jf_user.get("Name", display_name)
+                user.jellyfin_password = new_pw
+                db.session.commit()
+
+        # Look up the actual Jellyfin username from the stored user ID
+        if not jf_username:
+            try:
+                resp = requests.get(
+                    f"{jellyfin_url}/Users/{user.jellyfin_user_id}",
+                    headers=jf_headers,
+                    timeout=10,
+                )
+                resp.raise_for_status()
+                jf_username = resp.json().get("Name", display_name)
+            except Exception:
+                jf_username = display_name
+
+        # Authenticate to get a Jellyfin access token
+        auth_header = (
+            'MediaBrowser Client="Meduseld", Device="Web", DeviceId="meduseld-'
+            + str(user.id)
+            + '", Version="1.0.0"'
+        )
+        resp = requests.post(
+            f"{jellyfin_url}/Users/AuthenticateByName",
+            headers={"Content-Type": "application/json", "Authorization": auth_header},
+            json={"Username": jf_username, "Pw": user.jellyfin_password},
+            timeout=10,
+        )
+
+        if resp.status_code == 401:
+            # Password out of sync — reset it
+            new_pw = secrets.token_urlsafe(24)
+            reset_resp = requests.post(
+                f"{jellyfin_url}/Users/{user.jellyfin_user_id}/Password",
+                headers={**jf_headers, "Content-Type": "application/json"},
+                json={"NewPw": new_pw},
+                timeout=10,
+            )
+
+            if reset_resp.ok:
+                user.jellyfin_password = new_pw
+                db.session.commit()
+
+                # Retry auth
+                resp = requests.post(
+                    f"{jellyfin_url}/Users/AuthenticateByName",
+                    headers={"Content-Type": "application/json", "Authorization": auth_header},
+                    json={"Username": jf_username, "Pw": new_pw},
+                    timeout=10,
+                )
+
+            # If still failing, the stored user ID is stale — clear and retry from scratch
+            if resp.status_code == 401 and not retry:
+                logger.warning("Jellyfin auth: stored user ID stale, re-linking account")
+                user.jellyfin_user_id = None
+                user.jellyfin_password = None
+                db.session.commit()
+                return _jellyfin_auth_inner(retry=True)
+
+        resp.raise_for_status()
+        auth_result = resp.json()
+        token = auth_result.get("AccessToken", "")
+        auth_server_id = auth_result.get("ServerId", "")
+
+        # The Jellyfin web client validates stored credentials by comparing
+        # the ServerId against /System/Info/Public → Id. These can differ
+        # (AuthenticateByName returns an internal ID). Always use the public one.
+        server_id = auth_server_id
+        try:
+            info_resp = requests.get(f"{jellyfin_url}/System/Info/Public", timeout=5)
+            if info_resp.ok:
+                public_id = info_resp.json().get("Id", "")
+                if public_id and public_id != auth_server_id:
+                    logger.info(
+                        f"Jellyfin auth: using public ServerId {public_id} (AuthenticateByName returned {auth_server_id})"
+                    )
+                    server_id = public_id
+        except Exception:
+            pass  # Fall back to auth_server_id
+
+        logger.info(f"Jellyfin auth success: user={jf_username}, server_id={server_id}")
+        return jsonify({"token": token, "user_id": user.jellyfin_user_id, "server_id": server_id})
+
+    except requests.Timeout:
+        logger.error("Jellyfin auth: timeout connecting to Jellyfin")
+        return jsonify({"error": "Jellyfin server timeout"}), 504
+    except requests.RequestException as e:
+        logger.error(f"Jellyfin auth error: {e}")
+        return jsonify({"error": "Jellyfin unavailable"}), 503
+    except Exception as e:
+        logger.error(f"Jellyfin auth unexpected error: {e}")
+        return jsonify({"error": "Internal error"}), 500
 
 
 # ================= ADMIN API =================
@@ -1428,9 +1603,11 @@ def jellyfin_proxy(path=""):
     """Proxy requests to Jellyfin server"""
     from flask import Response
 
+    jellyfin_base = config.JELLYFIN_INTERNAL_URL.rstrip("/")
+
     try:
         # Always proxy to the Jellyfin server with the exact path
-        jellyfin_url = f"http://71.191.152.254:8096/{path}"
+        jellyfin_url = f"{jellyfin_base}/{path}"
 
         # Forward query parameters
         if request.query_string:
@@ -1461,9 +1638,7 @@ def jellyfin_proxy(path=""):
             if name.lower() not in excluded_headers:
                 # Rewrite Location header to use proxy domain
                 if name.lower() == "location":
-                    value = value.replace(
-                        "http://71.191.152.254:8096", "https://jellyfin.meduseld.io"
-                    )
+                    value = value.replace(jellyfin_base, "https://jellyfin.meduseld.io")
                 response_headers.append((name, value))
 
         # Rewrite content for HTML/JS/JSON responses
@@ -1477,10 +1652,69 @@ def jellyfin_proxy(path=""):
             try:
                 text_content = content.decode("utf-8")
                 # Replace backend URL references
-                text_content = text_content.replace(
-                    "http://71.191.152.254:8096", "https://jellyfin.meduseld.io"
-                )
-                text_content = text_content.replace("71.191.152.254:8096", "jellyfin.meduseld.io")
+                text_content = text_content.replace(jellyfin_base, "https://jellyfin.meduseld.io")
+                # Also replace without protocol in case of partial matches
+                jellyfin_host = jellyfin_base.replace("http://", "").replace("https://", "")
+                text_content = text_content.replace(jellyfin_host, "jellyfin.meduseld.io")
+
+                # Inject auto-login script into Jellyfin HTML pages.
+                # This uses a deferred approach: waits for Jellyfin's own
+                # ConnectionManager to finish initializing localStorage, then
+                # patches in our AccessToken/UserId. This avoids the race
+                # condition where Jellyfin overwrites our credentials.
+                if "text/html" in content_type and "</head>" in text_content:
+                    auto_login_script = """<script>
+(function() {
+    // Skip if already logged in
+    try {
+        var creds = JSON.parse(localStorage.getItem("jellyfin_credentials") || "{}");
+        if (creds.Servers && creds.Servers.length && creds.Servers[0].AccessToken) return;
+    } catch(e) {}
+    // One attempt per session to prevent loops
+    if (sessionStorage.getItem("meduseld_sso_attempted")) return;
+    sessionStorage.setItem("meduseld_sso_attempted", "1");
+    // Fetch auth token, then wait for Jellyfin to initialize before patching
+    fetch("/api/jellyfin-auth", {credentials:"include"})
+        .then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(function(d) {
+            if (!d.token || !d.user_id) return;
+            // Poll until Jellyfin's ConnectionManager has set up credentials
+            var elapsed = 0, interval = 250, maxWait = 15000;
+            var poll = setInterval(function() {
+                elapsed += interval;
+                try {
+                    var raw = localStorage.getItem("jellyfin_credentials");
+                    if (raw) {
+                        var c = JSON.parse(raw);
+                        if (c.Servers && c.Servers.length && c.Servers[0].Id) {
+                            c.Servers[0].AccessToken = d.token;
+                            c.Servers[0].UserId = d.user_id;
+                            c.Servers[0].ManualAddress = "https://jellyfin.meduseld.io";
+                            c.Servers[0].LastConnectionMode = 2;
+                            c.Servers[0].manualAddressOnly = true;
+                            c.Servers[0].DateLastAccessed = new Date().getTime();
+                            localStorage.setItem("jellyfin_credentials", JSON.stringify(c));
+                            localStorage.setItem("enableAutoLogin", "true");
+                            clearInterval(poll);
+                            window.location.replace("/web/index.html#!/home.html");
+                            return;
+                        }
+                    }
+                } catch(e) {}
+                if (elapsed >= maxWait) {
+                    clearInterval(poll);
+                    // Timeout fallback: write credentials directly
+                    var c = {Servers:[{AccessToken:d.token,UserId:d.user_id,Id:d.server_id||"",ManualAddress:"https://jellyfin.meduseld.io",LastConnectionMode:2,manualAddressOnly:true,DateLastAccessed:new Date().getTime()}]};
+                    localStorage.setItem("jellyfin_credentials", JSON.stringify(c));
+                    localStorage.setItem("enableAutoLogin", "true");
+                    window.location.replace("/web/index.html#!/home.html");
+                }
+            }, interval);
+        }).catch(function(e){ console.log("Meduseld SSO: " + e); });
+})();
+</script>"""
+                    text_content = text_content.replace("</head>", auto_login_script + "</head>")
+
                 content = text_content.encode("utf-8")
             except Exception as e:
                 logger.warning(f"Could not rewrite content: {e}")
@@ -2603,6 +2837,95 @@ def check_service(service):
 def jellyfin_catch_all(path):
     """Catch-all for Jellyfin subdomain paths"""
     host = request.host.split(":")[0]
+
+    # Serve auto-login page on Jellyfin domain.
+    # Uses iframe-first approach: loads Jellyfin web client in a hidden iframe
+    # so its ConnectionManager initializes jellyfin_credentials in localStorage,
+    # then patches in our AccessToken/UserId. This prevents the race condition
+    # where Jellyfin's JS overwrites our credentials after redirect.
+    if host == "jellyfin.meduseld.io" and path == "sso-login":
+        token = request.args.get("token", "")
+        user_id = request.args.get("userId", "")
+        server_id = request.args.get("serverId", "")
+        if not token or not user_id:
+            return redirect("https://jellyfin.meduseld.io")
+        return (
+            f"""<!DOCTYPE html>
+<html>
+<head><title>Connecting to Edoras...</title></head>
+<body style="background:#0b1f14;color:#e6c65c;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+<div id="status" style="text-align:center;">
+<div style="margin-bottom:16px;"><div style="width:40px;height:40px;border:3px solid #e6c65c;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div></div>
+<p>Connecting to Edoras...</p>
+</div>
+<style>@keyframes spin{{from{{transform:rotate(0deg)}}to{{transform:rotate(360deg)}}}}</style>
+<script>
+(function() {{
+    var token = "{token}";
+    var userId = "{user_id}";
+    var serverId = "{server_id}";
+    var POLL_INTERVAL = 250;
+    var MAX_WAIT = 15000;
+    var elapsed = 0;
+
+    // Load Jellyfin web client in a hidden iframe so its ConnectionManager
+    // initializes localStorage (jellyfin_credentials, _deviceId2, etc.)
+    var iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:absolute;width:0;height:0;border:0;visibility:hidden;";
+    iframe.src = "/web/index.html";
+    document.body.appendChild(iframe);
+
+    // Poll localStorage until Jellyfin has initialized its credentials
+    var poll = setInterval(function() {{
+        elapsed += POLL_INTERVAL;
+        try {{
+            var raw = localStorage.getItem("jellyfin_credentials");
+            if (raw) {{
+                var creds = JSON.parse(raw);
+                // Wait until Jellyfin has set up Servers[0].Id (server discovery done)
+                if (creds.Servers && creds.Servers.length > 0 && creds.Servers[0].Id) {{
+                    // Patch in our auth token and user ID
+                    creds.Servers[0].AccessToken = token;
+                    creds.Servers[0].UserId = userId;
+                    creds.Servers[0].ManualAddress = "https://jellyfin.meduseld.io";
+                    creds.Servers[0].LastConnectionMode = 2;
+                    creds.Servers[0].manualAddressOnly = true;
+                    creds.Servers[0].DateLastAccessed = new Date().getTime();
+                    localStorage.setItem("jellyfin_credentials", JSON.stringify(creds));
+                    localStorage.setItem("enableAutoLogin", "true");
+                    clearInterval(poll);
+                    // Remove iframe and redirect
+                    iframe.remove();
+                    window.location.replace("/web/index.html#!/home.html");
+                    return;
+                }}
+            }}
+        }} catch(e) {{}}
+
+        if (elapsed >= MAX_WAIT) {{
+            // Timeout — fall back to direct credential write
+            clearInterval(poll);
+            iframe.remove();
+            try {{
+                var c = {{"Servers":[{{"AccessToken":token,"UserId":userId,"Id":serverId,"ManualAddress":"https://jellyfin.meduseld.io","LastConnectionMode":2,"manualAddressOnly":true,"DateLastAccessed":new Date().getTime()}}]}};
+                localStorage.setItem("jellyfin_credentials", JSON.stringify(c));
+                localStorage.setItem("enableAutoLogin", "true");
+            }} catch(e) {{}}
+            window.location.replace("/web/index.html#!/home.html");
+        }}
+    }}, POLL_INTERVAL);
+}})();
+</script>
+</body>
+</html>""",
+            200,
+            {"Content-Type": "text/html"},
+        )
+
+    # Handle jellyfin-auth on the jellyfin subdomain so the auto-login
+    # script can call it same-origin (avoids Cloudflare Access CORS issues)
+    if host == "jellyfin.meduseld.io" and path == "api/jellyfin-auth":
+        return api_jellyfin_auth()
 
     # Only proxy if on jellyfin subdomain
     if host == "jellyfin.meduseld.io":

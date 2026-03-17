@@ -41,9 +41,11 @@ Each active service card has a status indicator badge that shows Online/Offline/
    - Production/Development mode toggle badge → currently hidden. When visible, click to switch between `panel.meduseld.io` and `panel.meduseld.io?env=development`. Persists in localStorage as `panelDevMode`. Shows a toast notification on toggle.
    - Game name and description are dynamically set from `CONFIG.gameName` (currently "Icarus")
 
-2. **Palantir (Jellyfin/Media)**
+2. **Edoras (Jellyfin/Media)**
    - Status badge: checks jellyfin health
-   - "Open Palantir" button → links to `https://jellyfin.meduseld.io` (disabled when offline)
+   - "Open Edoras" button → calls `/api/jellyfin-auth` to auto-provision a Jellyfin account and get an auth token, then redirects to `jellyfin.meduseld.io/sso-login` which sets localStorage credentials and opens Jellyfin logged in. Falls back to opening Jellyfin directly if auth fails. Button shows "Connecting..." spinner during auth. (disabled when offline)
+   - SSO login page (`/sso-login`): uses an iframe-first approach to avoid a race condition where Jellyfin's ConnectionManager overwrites localStorage credentials. Loads `/web/index.html` in a hidden iframe, polls localStorage every 250ms until Jellyfin initializes `jellyfin_credentials` with `Servers[0].Id`, then patches in `AccessToken`/`UserId` and redirects. Falls back to direct credential write after 15 seconds.
+   - Direct visit auto-login: when a user visits `jellyfin.meduseld.io` directly with a valid `CF_Authorization` cookie, an injected script automatically calls `/api/jellyfin-auth`, then polls localStorage waiting for Jellyfin's ConnectionManager to initialize credentials before patching in the auth token. Uses `sessionStorage` flag to prevent retry loops (one attempt per session).
 
 3. **SSH Access** (Admin only — hidden for non-admin users)
    - Gold "Admin" badge below card title

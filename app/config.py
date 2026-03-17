@@ -124,6 +124,10 @@ DATABASE_URL = os.environ.get(
     ),
 )
 
+# ================= JELLYFIN =================
+JELLYFIN_INTERNAL_URL = os.environ.get("JELLYFIN_INTERNAL_URL", "http://localhost:8096")
+JELLYFIN_API_KEY = os.environ.get("JELLYFIN_API_KEY", None)
+
 # ================= GOOGLE DRIVE BACKUP =================
 GOOGLE_CLIENT_ID = os.environ.get(
     "GOOGLE_CLIENT_ID", "282219108850-al0ddv2us3ovig0lg18lhae7m7ocemev.apps.googleusercontent.com"
