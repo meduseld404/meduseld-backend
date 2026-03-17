@@ -101,7 +101,7 @@ Table: `users`
 | Column       | Type        | Notes                                                                  |
 | ------------ | ----------- | ---------------------------------------------------------------------- |
 | id           | Integer     | Primary key                                                            |
-| discord_id   | String(64)  | Unique, indexed. Real Discord snowflake ID (e.g. `170638230469738497`) |
+| discord_id   | String(64)  | Unique, indexed. Real Discord snowflake ID (e.g. `000000000000000000`) |
 | username     | String(128) | Discord username                                                       |
 | display_name | String(128) | Discord global_name                                                    |
 | avatar_hash  | String(256) | Discord avatar hash for CDN URL                                        |
