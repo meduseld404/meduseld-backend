@@ -551,44 +551,42 @@ def api_sync_identity():
     """
     Called by client-side auth.js with Discord user data from the
     Cloudflare Access /cdn-cgi/access/get-identity endpoint.
-    Updates the user's DB record with real Discord ID, username, and avatar.
+    Creates or updates the user's DB record with real Discord ID, username, and avatar.
     """
     data = request.get_json()
     if not data or not data.get("discord_id"):
         return jsonify({"error": "Missing discord_id"}), 400
 
-    # We need an authenticated user to know which DB record to update.
-    # Try session first, fall back to g.user (set by authenticate_request
-    # from CF_Authorization cookie on cross-origin requests).
-    user_data = session.get("user")
-    if not user_data and hasattr(g, "user") and g.user is not None:
-        user_data = g.user.to_dict()
-    if not user_data:
-        return jsonify({"error": "Not authenticated"}), 401
-
     from models import User
     from database import db
 
-    user = User.query.filter_by(discord_id=str(user_data["discord_id"])).first()
-    if not user:
-        return jsonify({"error": "User not found"}), 404
+    discord_id = str(data["discord_id"])
+    username = data.get("username", "")
+    display_name = data.get("display_name", "")
+    avatar_hash = data.get("avatar_hash", "")
 
-    # Update with real Discord data
-    old_discord_id = user.discord_id
-    user.discord_id = str(data["discord_id"])
-    user.username = data.get("username", user.username)
-    user.display_name = data.get("display_name", user.display_name)
-    user.avatar_hash = data.get("avatar_hash", user.avatar_hash)
+    # Get email from the authenticated user context (JWT) if available
+    email = None
+    if hasattr(g, "user") and g.user is not None:
+        email = g.user.email
+    elif "user" in session:
+        email = session["user"].get("email")
+
+    # Use get_or_create so first-time users visiting only static pages
+    # still get a DB record created via this sync call.
+    user = User.get_or_create(
+        discord_id=discord_id,
+        username=username,
+        display_name=display_name,
+        avatar_hash=avatar_hash,
+        email=email,
+    )
 
     try:
-        db.session.commit()
         session["user"] = user.to_dict()
-        logger.info(
-            f"Synced Discord identity: {old_discord_id} -> {user.discord_id} ({user.username})"
-        )
+        logger.info(f"Synced Discord identity: {user.discord_id} ({user.username})")
         return jsonify({"synced": True, "user": user.to_dict()}), 200
     except Exception as e:
-        db.session.rollback()
         logger.error(f"Error syncing identity: {e}")
         return jsonify({"error": "Sync failed"}), 500
 
