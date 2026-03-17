@@ -165,6 +165,7 @@ Authenticated Flask page for controlling the Icarus dedicated game server. Requi
 - "Backup" dropdown:
   - "Download Backup" → `GET /download-backup` (downloads file)
   - "Backup to Cloud" → `GET /backup-to-cloud` (triggers Google Drive upload)
+- Profile widget (top-right) → same shared `auth.js` `renderProfile()` widget used on all pages. Shows avatar, display name, Admin badge for admins. Dropdown includes: username, role, "Admin Panel" link (admin only), and Logout.
 
 ### Development Mode
 
