@@ -45,7 +45,7 @@ Each active service card has a status indicator badge that shows Online/Offline/
    - Status badge: checks jellyfin health
    - "Open Edoras" button → opens a modal with two options (disabled when offline):
      - "View Library" → calls `/api/jellyfin-auth` to auto-provision a Jellyfin account and get an auth token, then navigates (same tab) to `jellyfin.meduseld.io/sso-login` which sets localStorage credentials and opens Jellyfin logged in. Falls back to navigating to Jellyfin directly if auth fails. Shows "Connecting..." spinner during auth.
-     - "Request" dropdown → "Movies" links to `https://radarr.meduseld.io`, "TV Shows" links to `https://sonarr.meduseld.io` (both open in new tab)
+     - "Request" button → links to `https://overseerr.meduseld.io` (opens in new tab)
    - SSO login page (`/sso-login`): uses an iframe-first approach to avoid a race condition where Jellyfin's ConnectionManager overwrites localStorage credentials. Loads `/web/index.html` in a hidden iframe, polls localStorage every 250ms until Jellyfin initializes `jellyfin_credentials` with `Servers[0].Id`, then patches in `AccessToken`/`UserId` and redirects. Falls back to direct credential write after 15 seconds.
    - Direct visit auto-login: when a user visits `jellyfin.meduseld.io` directly with a valid `CF_Authorization` cookie, an injected script automatically calls `/api/jellyfin-auth`, then polls localStorage waiting for Jellyfin's ConnectionManager to initialize credentials before patching in the auth token. Uses `sessionStorage` flag to prevent retry loops (one attempt per session).
 
