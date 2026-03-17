@@ -35,70 +35,8 @@
           </li>
         </ul>
       </div>
-      <!-- User Profile -->
-      {% if user %}
-      <div class="position-relative" id="panel-profile-container">
-        <div
-          class="d-flex align-items-center gap-2"
-          style="cursor: pointer"
-          id="panel-profile-toggle"
-        >
-          {% if user.avatar_url %}
-          <img
-            src="{{ user.avatar_url }}"
-            alt="Avatar"
-            style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid #e6c65c"
-          />
-          {% else %}
-          <i class="bi bi-person-circle" style="font-size: 1.6rem; color: #e6c65c"></i>
-          {% endif %}
-          <span class="btn-label text-light" style="font-size: 0.85rem"
-            >{{ user.display_name or user.username }}</span
-          >
-          {% if user.role == 'admin' %}
-          <span class="badge" style="font-size: 0.6rem; background: #e6c65c; color: #0b1f14"
-            >Admin</span
-          >
-          {% endif %}
-        </div>
-        <div
-          id="panel-profile-dropdown"
-          class="position-absolute end-0 mt-2 py-2 rounded shadow-lg"
-          style="
-            display: none;
-            min-width: 200px;
-            background: #1a1a2e;
-            border: 1px solid rgba(230, 198, 92, 0.3);
-            z-index: 1050;
-          "
-        >
-          <div
-            class="px-3 py-2 border-bottom"
-            style="border-color: rgba(230, 198, 92, 0.2) !important"
-          >
-            <div class="text-light" style="font-size: 0.85rem; font-weight: 600">
-              {{ user.display_name or user.username }}
-            </div>
-            <div style="font-size: 0.75rem; color: #a0a0b8">@{{ user.username }}</div>
-          </div>
-          <div class="px-3 py-2">
-            <div style="font-size: 0.75rem; color: #a0a0b8">Role: {{ user.role or 'user' }}</div>
-          </div>
-          <div
-            class="px-3 py-2 border-top"
-            style="border-color: rgba(230, 198, 92, 0.2) !important"
-          >
-            <a
-              href="/cdn-cgi/access/logout"
-              class="text-danger text-decoration-none"
-              style="font-size: 0.8rem"
-            >
-              <i class="bi bi-box-arrow-right me-1"></i>Logout
-            </a>
-          </div>
-        </div>
-      </div>
-      {% endif %}
+      <!-- User Profile (rendered by auth.js) -->
+      <div id="profile-container" style="position: relative; display: none"></div>
     </div>
   </div>
 </div>
@@ -1044,28 +982,14 @@
   setInterval(loadHistory, 30000);
 </script>
 
-<script>
-  // Profile dropdown toggle
-  (function () {
-    var toggle = document.getElementById('panel-profile-toggle');
-    var dropdown = document.getElementById('panel-profile-dropdown');
-    if (toggle && dropdown) {
-      toggle.addEventListener('click', function (e) {
-        e.stopPropagation();
-        dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
-      });
-      document.addEventListener('click', function () {
-        dropdown.style.display = 'none';
-      });
-    }
-  })();
-</script>
-
-<!-- Auth sync: fetches real Discord data via Cloudflare Access identity endpoint and syncs to DB -->
+<!-- Auth: renders profile widget and syncs Discord data to DB -->
 <script src="https://meduseld.io/static/auth.js"></script>
 <script>
   if (typeof MeduseldAuth !== 'undefined') {
-    MeduseldAuth.syncUser();
+    MeduseldAuth.renderProfile('profile-container');
+    MeduseldAuth.syncUser().then(function () {
+      MeduseldAuth.renderProfile('profile-container');
+    });
   }
 </script>
 
