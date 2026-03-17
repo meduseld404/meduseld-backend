@@ -28,6 +28,7 @@ Central navigation hub. All service cards check live status via a Cloudflare Wor
 - "Changelog" button → opens a modal (content placeholder, says "coming soon")
 - Discord widget (Widgetbot Crate) → embedded chat bubble in bottom-right, links to server channel `1474674474036232204`
 - Speech bubble notification → appears after 3 seconds, fades after 8 seconds, says "Server suggestion or problem? Send a Discord message!"
+- Profile widget (top-right) → shows avatar, display name, and Admin badge for admins. Dropdown includes: username, role, "Admin Panel" link (admin only, links to `https://admin.meduseld.io`), and Logout
 - Copyright footer with quietarcade link and version badge
 
 ### Service Cards (Active)
@@ -45,10 +46,12 @@ Each active service card has a status indicator badge that shows Online/Offline/
    - "Open Palantir" button → links to `https://jellyfin.meduseld.io` (disabled when offline)
 
 3. **SSH Access** (Admin only — hidden for non-admin users)
+   - Gold "Admin" badge below card title
    - Status badge: checks SSH health
    - "Open SSH Terminal" button → links to `https://ssh.meduseld.io` (disabled when offline)
 
 4. **System Monitor** (Admin only — hidden for non-admin users)
+   - Gold "Admin" badge below card title
    - Always shows "Active" badge (static page, always available)
    - "Open System Monitor" button → links to `https://system.meduseld.io`
 
@@ -94,7 +97,6 @@ Static display of hardware specs: AMD Ryzen 7 2700, 32GB DDR4 3600, RTX 3060, 1T
 - Herugrim Repo → same as site repo link (likely needs updating)
 - Gmail → `https://mail.google.com`
 - Drive → Google Drive backups folder
-- Admin → `https://admin.meduseld.io` (admin only — hidden for non-admin users)
 
 ### Restricted Access Toast
 

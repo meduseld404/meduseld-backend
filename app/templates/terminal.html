@@ -342,14 +342,13 @@
     <script src="https://meduseld.io/static/auth.js"></script>
     <script>
       if (typeof MeduseldAuth !== 'undefined') {
+        if (!MeduseldAuth.hasRole('admin')) {
+          window.location.href = 'https://services.meduseld.io?restricted=ssh-terminal';
+        }
+        MeduseldAuth.renderProfile('profile-container');
         MeduseldAuth.syncUser().then(function () {
           MeduseldAuth.renderProfile('profile-container');
-          if (!MeduseldAuth.hasRole('admin')) {
-            window.location.href = 'https://services.meduseld.io?restricted=ssh-terminal';
-            return;
-          }
         });
-        MeduseldAuth.renderProfile('profile-container');
       }
     </script>
   </body>
