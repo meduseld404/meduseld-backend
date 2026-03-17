@@ -150,6 +150,33 @@ Server logs viewer and system management page. Non-admin users are redirected to
 - Button resets after 3 seconds on failure
 - "Cancel" button → closes modal
 
+### System Monitoring Section
+
+All system stats fetched from standalone monitoring microservice at `https://health.meduseld.io/check/stats` every 5 seconds. Charts history from `https://health.meduseld.io/check/history` every 30 seconds. Game server stats fetched from `https://panel.meduseld.io/api/stats` (best-effort, fails gracefully if panel is down) every 10 seconds.
+
+#### Status Cards Row
+
+6 cards: Status (Online/Offline), CPU %, CPU Temp (color-coded: green <60°C, yellow 60-75°C, red 75°C+), RAM (used/total GB), Disk (used/total GB), Power (watts with monthly cost estimate)
+
+#### Power Breakdown Card
+
+Shows per-component wattage: CPU, GPU, RAM, Storage (NVMe), Other (MB/Fans/AIO), and Total. Values come from the monitoring service (RAPL for CPU, nvidia-smi for GPU, static estimates for the rest).
+
+#### Cost Estimate Card (24/7)
+
+Displays electricity cost in USD ($): current draw, daily, monthly (30d), yearly, and rate per kWh. Rate defaults to $0.145/kWh (configurable via `ELECTRICITY_COST_PER_KWH` env var on the monitoring service).
+
+#### Charts (3 columns)
+
+- CPU Usage — system CPU % over time (gold line)
+- RAM Usage — system RAM in GB over time (gold line)
+- Power Draw — total watts (gold), CPU watts (green), GPU watts (purple)
+- All use Chart.js line graphs with 30 minutes of rolling history
+
+#### Game Server Card
+
+Shows: State (color-coded), Players (X/8), Uptime, Server CPU (cores), Server RAM (GB), Health (good/warning/critical). Shows "Unavailable" if the Flask backend is down.
+
 ---
 
 ## panel.meduseld.io — Game Server Control Panel

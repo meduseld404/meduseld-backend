@@ -295,6 +295,33 @@ WantedBy=multi-user.target
 
 Push to main, then on the server pull and restart the service. The webhook at `/webhook/deploy.sh` automates this.
 
+### Standalone Microservices
+
+Three lightweight Python HTTP servers run independently of the Flask app so the system monitor page works even when the panel is down. All are managed by systemd and proxied through the Flask app's `check_service()` handler at `health.meduseld.io/check/<service>`.
+
+1. **Monitoring Service** (`monitoring/stats_server.py`)
+   - Port: 5004
+   - systemd: `meduseld-monitoring.service`
+   - Endpoints: `GET /stats` (live metrics), `GET /history` (30-min rolling data), `GET /health`
+   - Reads: psutil (CPU, RAM, disk, temp), RAPL (CPU power), nvidia-smi (GPU power)
+   - Env: `ELECTRICITY_COST_PER_KWH` (default 0.245, currently set to 0.145 for USD)
+   - Dependency: `psutil`
+
+2. **Reboot Service** (`reboot/reboot_server.py`)
+   - Port: 5002
+   - systemd: `meduseld-reboot.service`
+   - Endpoints: `POST /reboot` (requires token), `GET /health`
+   - Env: `REBOOT_SECRET`
+
+3. **Backup Service** (`reboot/backup_server.py`)
+   - Port: 5003
+   - systemd: `meduseld-backup-api.service`
+   - Endpoints: `POST /backup` (requires token), `GET /status`, `GET /health`
+   - Triggers `meduseld-backup.service` via systemd
+   - Env: `BACKUP_SECRET`
+
+Flask proxy routing (`check_service()` in `webserver.py`): requests to `health.meduseld.io/check/stats` → `127.0.0.1:5004/stats`, `/check/history` → `127.0.0.1:5004/history`, `/check/backup` → `127.0.0.1:5003/backup`, `/check/backup-status` → `127.0.0.1:5003/status`, `/check/reboot` → `127.0.0.1:5002/reboot`, `/check/system-logs` → Flask's own `api_server_logs()`.
+
 ### Common Issues
 
 When the server "goes offline" after pressing start:
