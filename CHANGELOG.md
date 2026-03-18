@@ -1,6 +1,60 @@
 # Changelog
 
-All notable changes to the Meduseld Server Control Panel project.
+All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
+
+## [0.6.0-alpha](https://github.com/meduseld404/meduseld-backend/compare/v0.5.0-alpha...v0.6.0-alpha) (2026-03-18)
+
+
+### New Features
+
+* **api:** Use Discord role for immediate admin detection on terminal page ([d6a040d](https://github.com/meduseld404/meduseld-backend/commit/d6a040d3f2b2387f370cf63a1fe6a054fbab1bd9))
+* **auth:** Add /api/sync-identity endpoint for client-side Discord data sync ([eb57950](https://github.com/meduseld404/meduseld-backend/commit/eb57950dd0555c0ebc0a204c283886f3b1b41a78))
+* **auth:** Add client-side Discord identity sync to panel page ([7fd9402](https://github.com/meduseld404/meduseld-backend/commit/7fd9402ebb636cdc108c29edfffd76aa6c13a27b))
+* **auth:** Add PostgreSQL database and user authentication ([c3074c2](https://github.com/meduseld404/meduseld-backend/commit/c3074c2ed94102d2f2e99ede3201475ec042e83d))
+* **auth:** Add role-based access control and admin user management API ([3f192e9](https://github.com/meduseld404/meduseld-backend/commit/3f192e925ce004d008e2eaef42f84b512772986f))
+* **auth:** Auto-sync admin role from Discord on login ([4ee5c43](https://github.com/meduseld404/meduseld-backend/commit/4ee5c43b6d71e60f3ad85a4346e2694427ec2519))
+* **auth:** Fetch Cloudflare Access identity endpoint for Discord user data ([4770095](https://github.com/meduseld404/meduseld-backend/commit/4770095db797482fd18b1e53ebbc3a1bcfa5ecc8))
+* **backup:** Return backup filename in status response ([3b693a6](https://github.com/meduseld404/meduseld-backend/commit/3b693a6a48e5abc11599a05a439b20a975c89248))
+* **config:** Add power consumption monitoring backend ([bfe888a](https://github.com/meduseld404/meduseld-backend/commit/bfe888ace0fcaac209b12558d4ac3e1a59d37e33))
+* **monitoring:** Add standalone system monitoring microservice ([9611c4d](https://github.com/meduseld404/meduseld-backend/commit/9611c4db75921c4132c7ee5f6323cc89e2f80bbf))
+* **panel:** Add logout button to profile dropdown ([85b4f32](https://github.com/meduseld404/meduseld-backend/commit/85b4f3265f4b1556b36265178ccc7cceee39c43c))
+* **panel:** Add user profile display to control panel nav bar ([ee9963a](https://github.com/meduseld404/meduseld-backend/commit/ee9963a34a70aa957098cb982126e4563a0b34b0))
+* **panel:** Move profile to rightmost position and add to terminal page ([4181961](https://github.com/meduseld404/meduseld-backend/commit/418196140c81c51dbed4d06cec2de404b2fe2130))
+* **proxy:** Add Jellyfin auto-provisioning and SSO login ([907f002](https://github.com/meduseld404/meduseld-backend/commit/907f002367c8c2d1e0e82a4074b3d259f51268ef))
+
+
+### Bug Fixes
+
+* **api:** Add explicit CORS preflight handlers for cross-origin API endpoints ([f460666](https://github.com/meduseld404/meduseld-backend/commit/f460666a48fc95a55923c1919742e61373ea28ad))
+* **api:** Create user on sync-identity if not exists ([533feda](https://github.com/meduseld404/meduseld-backend/commit/533feda1c6719f6fe80ac0fb3dc99ab5a3955d6b))
+* **auth:** Add CORS credentials header for cross-origin /api/me requests ([0c67efd](https://github.com/meduseld404/meduseld-backend/commit/0c67efdb1a098f09a5e6cc2f49cd66947a77fe75))
+* **auth:** Correct health bypass path in PUBLIC_PATHS ([cd7274c](https://github.com/meduseld404/meduseld-backend/commit/cd7274cf14693988aa34adc053cee265ed3e4dc0))
+* **auth:** Fall back to CF_Authorization cookie for cross-origin API auth ([797e7e2](https://github.com/meduseld404/meduseld-backend/commit/797e7e21f3ad8a92195e3fb1adeab90e413715f8))
+* **auth:** Look up user by email fallback to prevent duplicate accounts ([93140e4](https://github.com/meduseld404/meduseld-backend/commit/93140e48248f693e3d2689b9a2f5297cc9de33ca))
+* **config:** Add contents read permission to auto-assign workflow ([53575d4](https://github.com/meduseld404/meduseld-backend/commit/53575d4a9a2b0611e730e97cb5b2598fad243859))
+* **panel:** Distinguish idle shutdown from unexpected process death in logs ([c43a1d2](https://github.com/meduseld404/meduseld-backend/commit/c43a1d23ee8dd3bfb50c05108fdff8abebd5d41c))
+* **panel:** Fix backup dropdown not opening ([e7340eb](https://github.com/meduseld404/meduseld-backend/commit/e7340ebdf322bd53600b5f21fb567777d20a9eeb))
+* **panel:** Hide SSH terminal button for non-admin users ([677d4d4](https://github.com/meduseld404/meduseld-backend/commit/677d4d4681b9c367adff373cdd79f18521695c7d))
+* **panel:** Suppress false process death alert on user-initiated kill ([11e4c09](https://github.com/meduseld404/meduseld-backend/commit/11e4c0944d9ad8d133261ddf966bec3881ffc9c5))
+
+
+### Refactoring
+
+* **auth:** Replace db.create_all with Alembic migrations ([bcd2bf3](https://github.com/meduseld404/meduseld-backend/commit/bcd2bf39d87ad93e6df049cb37e817da819c1879))
+* **monitoring:** Replace silent exception passes with proper logging ([649d889](https://github.com/meduseld404/meduseld-backend/commit/649d8891d5610c5e18e5de441698b0cd091f21e3))
+* **panel:** Use shared auth.js profile widget instead of custom Jinja ([49be14a](https://github.com/meduseld404/meduseld-backend/commit/49be14a034e8ae0be7a840a40d7a79500f7da244))
+
+
+### Styling
+
+* **panel:** Lighten username and role text in profile dropdown ([e79dd2b](https://github.com/meduseld404/meduseld-backend/commit/e79dd2bc094cf1859049213aba2b0d82aee751fe)), closes [#a0a0b8](https://github.com/meduseld404/meduseld-backend/issues/a0a0b8)
+* **panel:** Match SSH button padding to Backup dropdown size ([9b2ddad](https://github.com/meduseld404/meduseld-backend/commit/9b2ddad9f2c5daa20897a80d455e4361874cfead))
+* **panel:** Rename Startup Script Logs panel to Server Process Logs ([39981af](https://github.com/meduseld404/meduseld-backend/commit/39981af9701949a5246f166ea17aa847397aa0ef))
+
+
+### Reverts
+
+* **config:** Remove power monitoring from Flask app ([619ceb9](https://github.com/meduseld404/meduseld-backend/commit/619ceb987ff2c7783cc9d90c316f311d45c2de81))
 
 ## [0.5.0-alpha] - 2026-03-14
 
