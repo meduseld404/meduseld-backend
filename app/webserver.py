@@ -2851,6 +2851,49 @@ def health_check_public():
     return jsonify({"status": "ok"}), 200
 
 
+def _authenticate_from_cookie():
+    """Authenticate a user from the CF_Authorization cookie on public hosts.
+    Used by health.meduseld.io proxy routes that need auth but bypass Cloudflare Access.
+    Returns a User object or None."""
+    cf_token = request.cookies.get("CF_Authorization")
+    if not cf_token:
+        return None
+
+    try:
+        payload = jwt.decode(cf_token, options={"verify_signature": False})
+        custom = payload.get("custom", {})
+        discord_user = custom.get("discord_user", {}) if isinstance(custom, dict) else {}
+
+        if discord_user and discord_user.get("id"):
+            discord_id = str(discord_user["id"])
+            is_admin = discord_user.get("is_admin", False)
+        else:
+            return None
+
+        from models import User
+
+        user = User.query.filter_by(discord_id=discord_id).first()
+        if not user:
+            return None
+
+        # Sync admin role from Discord
+        if is_admin and user.role != "admin":
+            user.role = "admin"
+            from database import db
+
+            db.session.commit()
+        elif not is_admin and user.role == "admin":
+            user.role = "user"
+            from database import db
+
+            db.session.commit()
+
+        return user
+    except Exception as e:
+        logger.error("Failed to authenticate from CF_Authorization cookie: %s", e)
+        return None
+
+
 def _proxy_microservice(url):
     """Proxy a request to a local microservice and return its response."""
     try:
@@ -2876,7 +2919,7 @@ def _proxy_microservice(url):
         return jsonify({"error": str(e)}), 502
 
 
-@app.route("/check/<service>", methods=["GET", "POST", "OPTIONS"])
+@app.route("/check/<service>", methods=["GET", "POST", "PUT", "OPTIONS"])
 def check_service(service):
     """
     Health check endpoint for specific services on health.meduseld.io
@@ -2917,6 +2960,72 @@ def check_service(service):
 
     if service == "history":
         return _proxy_microservice("http://127.0.0.1:5004/history")
+
+    # Admin users API — proxied through health so static pages don't need
+    # a Cloudflare Access session for panel.meduseld.io
+    if service == "admin-users":
+        user = _authenticate_from_cookie()
+        if not user:
+            return jsonify({"error": "Authentication required"}), 401
+        if user.role != "admin":
+            return jsonify({"error": "Insufficient permissions"}), 403
+
+        if request.method == "GET":
+            from models import User as UserModel
+
+            users = UserModel.query.order_by(UserModel.created_at.desc()).all()
+            return jsonify({"users": [u.to_dict() for u in users]}), 200
+
+        return jsonify({"error": "Method not allowed"}), 405
+
+    if service.startswith("admin-users-"):
+        user = _authenticate_from_cookie()
+        if not user:
+            return jsonify({"error": "Authentication required"}), 401
+        if user.role != "admin":
+            return jsonify({"error": "Insufficient permissions"}), 403
+
+        # Extract user ID from service name: admin-users-<id>
+        try:
+            target_user_id = int(service.split("admin-users-")[1])
+        except (ValueError, IndexError) as e:
+            logger.error("Invalid admin-users proxy path: %s", e)
+            return jsonify({"error": "Invalid user ID"}), 400
+
+        if request.method == "PUT":
+            from models import User as UserModel
+            from database import db
+
+            target = UserModel.query.get(target_user_id)
+            if not target:
+                return jsonify({"error": "User not found"}), 404
+
+            data = request.get_json()
+            if not data:
+                return jsonify({"error": "No data provided"}), 400
+
+            if target.id == user.id and data.get("role") and data["role"] != "admin":
+                return jsonify({"error": "Cannot change your own role"}), 400
+
+            if "role" in data and data["role"] in ("admin", "user"):
+                target.role = data["role"]
+            if "is_active" in data and isinstance(data["is_active"], bool):
+                if target.id == user.id and not data["is_active"]:
+                    return jsonify({"error": "Cannot deactivate your own account"}), 400
+                target.is_active = data["is_active"]
+
+            try:
+                db.session.commit()
+                logger.info(
+                    f"Admin {user.username} updated user {target.username} via health proxy: role={target.role}, active={target.is_active}"
+                )
+                return jsonify({"user": target.to_dict()}), 200
+            except Exception as e:
+                db.session.rollback()
+                logger.error("Error updating user via health proxy: %s", e)
+                return jsonify({"error": "Update failed"}), 500
+
+        return jsonify({"error": "Method not allowed"}), 405
 
     if service not in service_urls:
         return jsonify({"status": "error", "message": "Unknown service"}), 404
