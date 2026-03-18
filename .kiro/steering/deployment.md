@@ -45,7 +45,7 @@ Served via Cloudflare Pages at `/srv/meduseld-site`
   - Promote/demote users between admin and user roles
   - Activate/deactivate user accounts
   - Shows "Backend Offline" state if Flask is down
-  - Calls `health.meduseld.io/check/admin-users` for data (routed through health to bypass Cloudflare Access session requirement). The admin page reads the `CF_Authorization` cookie via JS and passes its value as a `cf_token` query parameter (GET) or `_cf_token` in the JSON body (PUT) — this avoids both Cloudflare cookie interception and CORS preflight issues. Flask's `_authenticate_from_cookie()` checks cookie, header, query param, and body for the token.
+  - Calls `health.meduseld.io/check/team-roster` for data (routed through health to bypass Cloudflare Access session requirement). The endpoint is named "team-roster" instead of "admin-users" to avoid ad-blocker false positives. The admin page reads the `CF_Authorization` cookie via JS and passes its value as a `cf_token` query parameter (GET) or `_cf_token` in the JSON body (PUT) — this avoids both Cloudflare cookie interception and CORS preflight issues. Flask's `_authenticate_from_cookie()` checks cookie, header, query param, and body for the token.
 
 ### meduseld Repository (Flask Backend)
 
@@ -344,7 +344,7 @@ Three lightweight Python HTTP servers run independently of the Flask app so the 
    - Triggers `meduseld-backup.service` via systemd
    - Env: `BACKUP_SECRET`
 
-Flask proxy routing (`check_service()` in `webserver.py`): requests to `health.meduseld.io/check/stats` → `127.0.0.1:5004/stats`, `/check/history` → `127.0.0.1:5004/history`, `/check/backup` → `127.0.0.1:5003/backup`, `/check/backup-status` → `127.0.0.1:5003/status`, `/check/reboot` → `127.0.0.1:5002/reboot`, `/check/system-logs` → Flask's own `api_server_logs()`, `/check/admin-users` → admin users list (authenticated via `CF_Authorization` cookie or `X-CF-Authorization` header), `/check/admin-users-<id>` → admin user update (PUT).
+Flask proxy routing (`check_service()` in `webserver.py`): requests to `health.meduseld.io/check/stats` → `127.0.0.1:5004/stats`, `/check/history` → `127.0.0.1:5004/history`, `/check/backup` → `127.0.0.1:5003/backup`, `/check/backup-status` → `127.0.0.1:5003/status`, `/check/reboot` → `127.0.0.1:5002/reboot`, `/check/system-logs` → Flask's own `api_server_logs()`, `/check/team-roster` → admin users list (authenticated via CF_Authorization JWT passed as `cf_token` query param or `_cf_token` in body), `/check/team-roster-<id>` → admin user update (PUT).
 
 ### Common Issues
 
