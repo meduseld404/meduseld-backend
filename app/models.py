@@ -42,6 +42,7 @@ class User(db.Model):
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "last_login": self.last_login.isoformat() if self.last_login else None,
+            "has_jellyfin": bool(self.jellyfin_user_id),
         }
 
     @staticmethod

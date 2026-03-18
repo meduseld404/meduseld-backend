@@ -118,7 +118,7 @@ Table: `users`
 Key methods:
 
 - `User.get_or_create(discord_id, username, ...)` — Looks up by `discord_id` first, falls back to `email` to prevent duplicate accounts when Cloudflare UUID changes. When found by email fallback with real Discord data (indicated by avatar_hash), updates discord_id and profile. When found by email fallback without real Discord data, skips profile updates to preserve existing Discord data.
-- `user.to_dict()` — Serializes user for API responses and session storage
+- `user.to_dict()` — Serializes user for API responses and session storage. Includes `has_jellyfin` boolean derived from `jellyfin_user_id`.
 - `user.avatar_url` — Property that builds Discord CDN avatar URL
 
 ### Database Commands
