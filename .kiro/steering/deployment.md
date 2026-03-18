@@ -121,6 +121,19 @@ Key methods:
 - `user.to_dict()` — Serializes user for API responses and session storage. Includes `has_jellyfin` boolean derived from `jellyfin_user_id`.
 - `user.avatar_url` — Property that builds Discord CDN avatar URL
 
+### CalendarEvent Model (`app/models.py`)
+
+Table: `calendar_events`
+
+| Column      | Type        | Notes                     |
+| ----------- | ----------- | ------------------------- |
+| id          | Integer     | Primary key               |
+| title       | String(256) | Event title               |
+| description | Text        | Optional description      |
+| event_date  | DateTime    | When the event occurs     |
+| created_by  | Integer     | FK to `users.id`          |
+| created_at  | DateTime    | UTC, auto-set on creation |
+
 ### Database Commands
 
 ```bash
@@ -376,6 +389,12 @@ When the server "goes offline" after pressing start:
 
 - `GET /api/admin/users` - List all users with full profile data
 - `PUT /api/admin/users/<id>` - Update user role (`admin`/`user`) or active status (`true`/`false`)
+
+### Calendar Endpoints
+
+- `GET /api/calendar/events` - (Authenticated) List upcoming calendar events, sorted by date ascending
+- `POST /api/calendar/events` - (Admin only) Create a new calendar event. Body: `{title, event_date, description?}`
+- `DELETE /api/calendar/events/<id>` - (Admin only) Delete a calendar event
 
 ### Jellyfin Auto-Login
 

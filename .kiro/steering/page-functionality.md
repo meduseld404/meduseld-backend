@@ -29,6 +29,7 @@ Central navigation hub. All service cards check live status via a Cloudflare Wor
 - Discord widget (Widgetbot Crate) → embedded chat bubble in bottom-right, links to server channel `1474674474036232204`
 - Speech bubble notification → appears after 3 seconds, fades after 8 seconds, says "Server suggestion or problem? Send a Discord message!"
 - Profile widget (top-right, inside header nav bar) → shows avatar, display name, and Admin badge for admins. Dropdown includes: username, role, "Admin Panel" link (admin only, links to `https://admin.meduseld.io`), and Logout
+- Calendar widget (top-left) → shows upcoming group events fetched from `panel.meduseld.io/api/calendar/events`. Displays event title, date/time, and optional description. Admins see a "+" button to add events (opens modal with title, date/time, description fields) and delete buttons on each event. Events auto-load on page load.
 - Copyright footer with quietarcade link and dynamic version badge (fetches latest release from GitHub API, links to release page)
 
 ### Service Cards (Active)

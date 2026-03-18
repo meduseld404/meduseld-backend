@@ -97,3 +97,26 @@ class User(db.Model):
 
         db.session.commit()
         return user
+
+
+class CalendarEvent(db.Model):
+    __tablename__ = "calendar_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(256), nullable=False)
+    description = db.Column(db.Text)
+    event_date = db.Column(db.DateTime, nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    creator = db.relationship("User", backref="calendar_events")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "title": self.title,
+            "description": self.description,
+            "event_date": self.event_date.isoformat() if self.event_date else None,
+            "created_by": self.created_by,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }

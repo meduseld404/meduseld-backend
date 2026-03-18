@@ -834,6 +834,82 @@ def api_admin_update_user(user_id):
         return jsonify({"error": "Update failed"}), 500
 
 
+# ================= CALENDAR EVENTS =================
+
+
+@app.route("/api/calendar/events")
+@require_auth
+def api_calendar_events():
+    """Return upcoming calendar events."""
+    from models import CalendarEvent
+
+    events = (
+        CalendarEvent.query.filter(CalendarEvent.event_date >= datetime.now(timezone.utc))
+        .order_by(CalendarEvent.event_date.asc())
+        .all()
+    )
+    return jsonify({"events": [e.to_dict() for e in events]}), 200
+
+
+@app.route("/api/calendar/events", methods=["POST"])
+@require_auth
+@require_role("admin")
+def api_calendar_create_event():
+    """Create a new calendar event (admin only)."""
+    from models import CalendarEvent
+    from database import db
+
+    data = request.get_json()
+    if not data or not data.get("title") or not data.get("event_date"):
+        return jsonify({"error": "Title and event_date are required"}), 400
+
+    try:
+        event_date = datetime.fromisoformat(data["event_date"].replace("Z", "+00:00"))
+    except (ValueError, AttributeError) as e:
+        logger.error("Invalid date format for calendar event: %s", e)
+        return jsonify({"error": "Invalid date format"}), 400
+
+    event = CalendarEvent(
+        title=data["title"],
+        description=data.get("description", ""),
+        event_date=event_date,
+        created_by=g.user.id,
+    )
+
+    try:
+        db.session.add(event)
+        db.session.commit()
+        logger.info(f"Admin {g.user.username} created calendar event: {event.title}")
+        return jsonify({"event": event.to_dict()}), 201
+    except Exception as e:
+        db.session.rollback()
+        logger.error("Error creating calendar event: %s", e)
+        return jsonify({"error": "Failed to create event"}), 500
+
+
+@app.route("/api/calendar/events/<int:event_id>", methods=["DELETE"])
+@require_auth
+@require_role("admin")
+def api_calendar_delete_event(event_id):
+    """Delete a calendar event (admin only)."""
+    from models import CalendarEvent
+    from database import db
+
+    event = CalendarEvent.query.get(event_id)
+    if not event:
+        return jsonify({"error": "Event not found"}), 404
+
+    try:
+        db.session.delete(event)
+        db.session.commit()
+        logger.info(f"Admin {g.user.username} deleted calendar event: {event.title}")
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error("Error deleting calendar event: %s", e)
+        return jsonify({"error": "Failed to delete event"}), 500
+
+
 # ================= SERVER CONTROL =================
 
 
