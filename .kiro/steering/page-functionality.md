@@ -361,6 +361,8 @@ Static admin page for managing user roles and account status. Served by Cloudfla
 - Services column shows a purple Jellyfin icon if the user has Jellyfin credentials (`has_jellyfin`), dash otherwise
 - Current user row shows a "You" badge
 - Inactive users shown at 50% opacity
+- Users sorted: admins first, then alphabetically by display name
+- Users without a custom Discord avatar show Discord's default avatar (colored Discord logo) instead of a generic icon
 
 ### Actions Per User (not available on own account)
 
