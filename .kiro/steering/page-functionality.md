@@ -55,9 +55,14 @@ Each active service card has a status indicator badge that shows Online/Offline/
      - SSO login page (`/sso-login`): uses an iframe-first approach to avoid a race condition where Jellyfin's ConnectionManager overwrites localStorage credentials. Loads `/web/index.html` in a hidden iframe, polls localStorage every 250ms until Jellyfin initializes `jellyfin_credentials` with `Servers[0].Id`, then patches in `AccessToken`/`UserId` and redirects. Falls back to direct credential write after 15 seconds.
      - Direct visit auto-login: when a user visits `jellyfin.meduseld.io` directly with a valid `CF_Authorization` cookie, an injected script automatically calls `/api/jellyfin-auth`, then polls localStorage waiting for Jellyfin's ConnectionManager to initialize credentials before patching in the auth token. Uses `sessionStorage` flag to prevent retry loops (one attempt per session).
 
+3. **FellowSync (Spotify Listening Rooms)**
+   - Custom icon: `fellowsync-bi.png`
+   - "Open FellowSync" button → links to `https://fellowsync.meduseld.io`
+   - Description: "One does not simply listen alone..."
+   - No status badge (external app, not health-checked)
+
 ### Service Cards (Coming Soon — Disabled)
 
-- FellowSync — synchronized music listening ("One does not simply listen alone...")
 - VPN Access — Mullvad remote access
 - Game Wiki — community wiki for current game
 - The Red Book — e-books and audiobooks
