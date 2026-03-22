@@ -35,11 +35,11 @@ Central navigation hub. All service cards check live status via a Cloudflare Wor
 
 ### Service Cards (Active)
 
-Each active service card has a status indicator badge that shows Online/Offline/Cloudflare Offline with color coding (green/red/orange).
+Each active service card has a status indicator badge that shows Online/Offline/Cloudflare Offline with color coding (green/red/orange). When the Cloudflare tunnel is down, the service button becomes a link to `https://status.meduseld.io` instead of being disabled.
 
 1. **Icarus Server (Game Server Panel)**
    - Status badge: checks panel health, shows Online/Offline/Cloudflare Tunnel Down
-   - "Open Control Panel" button → links to `https://panel.meduseld.io` (disabled when offline)
+   - "Open Control Panel" button → links to `https://panel.meduseld.io` (disabled when offline, links to status page when tunnel is down)
    - Production/Development mode toggle badge → currently hidden. When visible, click to switch between `panel.meduseld.io` and `panel.meduseld.io?env=development`. Persists in localStorage as `panelDevMode`. Shows a toast notification on toggle.
    - Game name and description are dynamically set from `CONFIG.gameName` (currently "Icarus")
 
@@ -386,7 +386,7 @@ Below the users table, an "Admin Tools" section displays service cards for admin
 1. **SSH Access**
    - Status badge: checks SSH health via Cloudflare Worker health API (`https://meduseld-health.404-41f.workers.dev`), polls every 5 seconds
    - Shows Online/Offline/Cloudflare Tunnel Down with color coding (green/red/orange)
-   - "Open SSH Terminal" button → links to `https://ssh.meduseld.io` (disabled when offline)
+   - "Open SSH Terminal" button → links to `https://ssh.meduseld.io` (disabled when offline, links to status page when tunnel is down)
 
 2. **System Monitor**
    - Always shows "Online" badge (static page, always available)
@@ -468,5 +468,5 @@ Static page shown to users when the server/tunnel is down. No authentication req
 - Status dots: yellow (checking), green (online), red (offline/tunnel-down) with Bootstrap tooltips showing status text
 - "Last checked" timestamp updates on each poll
 - "Back to The Great Hall" button → links to `https://services.meduseld.io`
-- Matches the existing Meduseld dark/gold theme via shared `style.css`
+- Matches the existing Meduseld dark/gold theme with custom `status.png` background image (dark overlay)
 - Footer with copyright year (auto-filled via JS) and quietarcade link
