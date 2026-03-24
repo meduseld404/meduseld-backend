@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.7.0-alpha](https://github.com/meduseld404/meduseld-backend/compare/v0.6.0-alpha...v0.7.0-alpha) (2026-03-24)
+
+
+### New Features
+
+* **api:** Add admin users proxy via health.meduseld.io ([cb391df](https://github.com/meduseld404/meduseld-backend/commit/cb391dfc220ff1d940630218545d588cd85f3210))
+* **api:** Add calendar events model and API endpoints ([2ba6ae6](https://github.com/meduseld404/meduseld-backend/commit/2ba6ae6d89bea9e4fbde5ecf5ffdf422e0cd0e7c))
+* **api:** Add edit endpoint for calendar events ([99c0548](https://github.com/meduseld404/meduseld-backend/commit/99c05485a1ce1e07fd578f56d5fb926a1b32ecb0))
+* **api:** Add has_jellyfin to user model and update steering docs ([c687886](https://github.com/meduseld404/meduseld-backend/commit/c6878861369feeab51ac5546365e9448618cbe76))
+* **api:** Add RSVP support for calendar events ([f4c39bb](https://github.com/meduseld404/meduseld-backend/commit/f4c39bb8e4b3aa30653e43a03b614a6cda1a3955))
+* **health:** Add calendar proxy routes through health.meduseld.io ([a1bfd2b](https://github.com/meduseld404/meduseld-backend/commit/a1bfd2b536325cb5494efbfcf51ade57c728d098))
+* **panel:** Add dynamic version badge fetched from GitHub releases ([eee947c](https://github.com/meduseld404/meduseld-backend/commit/eee947c61d3328576d0eb3c803916d78a35d51f0))
+
+
+### Bug Fixes
+
+* **api:** Add debug logging to admin-users cookie auth ([e371c14](https://github.com/meduseld404/meduseld-backend/commit/e371c143d985c2829db7c96911984a75e2c33d78))
+* **api:** Add DELETE to CORS allowed methods for calendar event deletion ([f457500](https://github.com/meduseld404/meduseld-backend/commit/f4575000bad874db9a0afb9c9512863d966c567a))
+* **api:** Rename admin-users endpoint to avoid ad-blocker false positives ([0c2a008](https://github.com/meduseld404/meduseld-backend/commit/0c2a008b0997bc9afed85f9db09cb56799243022))
+* **api:** Use get_or_create in cookie auth for first-time users ([9f43650](https://github.com/meduseld404/meduseld-backend/commit/9f43650b69573d29765cc43b7c3fadddb50fac5a))
+* **api:** Use strptime for calendar date parsing and improve error logging ([4137409](https://github.com/meduseld404/meduseld-backend/commit/41374094c9ba06697e75f14eb65eba188f8ee1f0))
+* **auth:** Accept cf_token via query param and request body ([5732eca](https://github.com/meduseld404/meduseld-backend/commit/5732eca595ea356b4050c646647f8cba70e4d442))
+* **auth:** Route admin API through health host with X-CF-Authorization header ([3997dd2](https://github.com/meduseld404/meduseld-backend/commit/3997dd23fde4d965cd46f2dcdb9a9027b9dd92b5))
+* **config:** Update contact email to admin@meduseld.io ([0eb4613](https://github.com/meduseld404/meduseld-backend/commit/0eb461323e6dd195d6611c925332b3823ff1e281))
+* **panel:** Write stop marker to startup log for clean shutdown detection ([af19bfb](https://github.com/meduseld404/meduseld-backend/commit/af19bfb0f4e0fbe0d129d532e21aebbe70ae30cd))
+
+
+### Styling
+
+* **panel:** Add tooltip refresh after dynamic badge rendering ([3b70995](https://github.com/meduseld404/meduseld-backend/commit/3b7099513cc5dad7640819be60d16d236e694a8d))
+* **panel:** Change version badge color to warning yellow to match quietarcade link ([031918e](https://github.com/meduseld404/meduseld-backend/commit/031918ecda7d7d0291b2f026f481cedc4e38168d))
+* **panel:** Standardize terminal profile container and sync steering ([6286a90](https://github.com/meduseld404/meduseld-backend/commit/6286a90e648be8488f05f5055271333f8d79ad25))
+
 ## [0.6.0-alpha](https://github.com/meduseld404/meduseld-backend/compare/v0.5.0-alpha...v0.6.0-alpha) (2026-03-18)
 
 
