@@ -104,7 +104,7 @@ Express application at `/srv/apps/exspire`
   - No Cloudflare Access protection — ExSpire has its own auth system (email/password with JWT), independent of Meduseld's Discord OIDC auth
   - systemd: `exspire.service`
   - Database: sql.js (SQLite via WebAssembly)
-  - Env: `PORT`, `JWT_SECRET`, SMTP config for email notifications, VAPID keys for push notifications
+  - Env: `/etc/exspire.env` (root:vertebra, 640) — `PORT`, `JWT_SECRET`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `NOTIFICATION_FROM`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
   - Deployment: `cd /srv/apps/exspire && git pull && cd backend && npm install --production && cd ../frontend && npm install && npm run build && sudo systemctl restart exspire`
   - Auto-deploy: `exspire-deploy.timer` runs every 5 minutes, checks for new commits on `main`, pulls + installs dependencies (backend and frontend) + rebuilds + restarts if changes detected. Logs: `journalctl -u exspire-deploy.service`
   - Repo: separate `exspire` workspace folder
