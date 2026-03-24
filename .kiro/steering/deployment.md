@@ -100,13 +100,15 @@ Express application at `/srv/apps/exspire`
 
 - **exspire.meduseld.io** — Expiry tracking app
   - Standalone Express backend on port 3001, serves its own React frontend from `../frontend/dist`
-  - Routed through Cloudflare Tunnel (not proxied through Flask)
-  - Has its own auth system (email/password with JWT), independent of Meduseld's Discord OIDC auth
+  - Routed through Cloudflare Tunnel (not proxied through Flask). Tunnel ingress is managed via the Cloudflare Dashboard (remote management), not the local `config.yml` — the dashboard config takes precedence.
+  - No Cloudflare Access protection — ExSpire has its own auth system (email/password with JWT), independent of Meduseld's Discord OIDC auth
   - systemd: `exspire.service`
   - Database: sql.js (SQLite via WebAssembly)
   - Env: `PORT`, `JWT_SECRET`, SMTP config for email notifications, VAPID keys for push notifications
-  - Deployment: `cd /srv/apps/exspire/frontend && npm run build && sudo systemctl restart exspire`
+  - Deployment: `cd /srv/apps/exspire && git pull && cd backend && npm install --production && cd ../frontend && npm install && npm run build && sudo systemctl restart exspire`
+  - Auto-deploy: `exspire-deploy.timer` runs every 5 minutes, checks for new commits on `main`, pulls + installs dependencies (backend and frontend) + rebuilds + restarts if changes detected. Logs: `journalctl -u exspire-deploy.service`
   - Repo: separate `exspire` workspace folder
+  - Note: The old static demo page at `meduseld-site/exspire/index.html` has been removed. ExSpire is served entirely through the Cloudflare Tunnel via its Express backend.
 
 ### herugrim Repository (Discord OIDC Worker)
 
