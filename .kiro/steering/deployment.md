@@ -94,6 +94,20 @@ Cloudflare Worker at `https://meduseld-health.404-41f.workers.dev` that checks t
 - Important: Worker-to-Worker fetches within Cloudflare's network get intercepted by Cloudflare Access (returns login page as 200 OK), so the tunnel check must use a path that bypasses Access. The `/health` path is configured as a bypass in the Cloudflare Access application for `panel.meduseld.io`.
 - No env vars required.
 
+### ExSpire (Standalone Node.js App)
+
+Express application at `/srv/apps/exspire`
+
+- **exspire.meduseld.io** — Expiry tracking app
+  - Standalone Express backend on port 3001, serves its own React frontend from `../frontend/dist`
+  - Routed through Cloudflare Tunnel (not proxied through Flask)
+  - Has its own auth system (email/password with JWT), independent of Meduseld's Discord OIDC auth
+  - systemd: `exspire.service`
+  - Database: sql.js (SQLite via WebAssembly)
+  - Env: `PORT`, `JWT_SECRET`, SMTP config for email notifications, VAPID keys for push notifications
+  - Deployment: `cd /srv/apps/exspire/frontend && npm run build && sudo systemctl restart exspire`
+  - Repo: separate `exspire` workspace folder
+
 ### herugrim Repository (Discord OIDC Worker)
 
 Cloudflare Worker (`worker.js`) that acts as an OIDC identity provider bridging Discord OAuth to Cloudflare Access.
@@ -204,8 +218,8 @@ sudo -u postgres psql -d meduseld_db -c "SELECT discord_id, username, avatar_has
    - `auth.js` decodes `CF_Authorization` cookie client-side for basic user info
    - `auth.js` calls `/cdn-cgi/access/get-identity` to get full identity including `custom.discord_user` (which contains `is_admin` flag from herugrim)
    - `auth.js` sets admin role immediately from `discord_user.is_admin` — no backend dependency
-   - `auth.js` POSTs to `https://panel.meduseld.io/api/sync-identity` with real Discord data (best-effort, non-blocking)
-   - `auth.js` calls `https://panel.meduseld.io/api/me` to get DB-synced user info (best-effort, non-blocking)
+   - `auth.js` POSTs to `https://panel.meduseld.io/api/sync-identity` with real Discord data (best-effort, non-blocking). Uses `redirect: 'manual'` to prevent Cloudflare Access login redirects from navigating the page away when the cookie is missing or expired.
+   - `auth.js` calls `https://panel.meduseld.io/api/me` to get DB-synced user info (best-effort, non-blocking). Also uses `redirect: 'manual'`.
 
 ### Cross-Origin Auth (Static Pages → Flask API)
 
@@ -272,7 +286,7 @@ After the first admin is set, subsequent admins can be promoted from the admin p
 
 - All subdomain apps need `options_preflight_bypass: true` to allow CORS preflight requests
 - `panel.meduseld.io/health` is configured as a bypass path in Cloudflare Access so the health Worker can check tunnel status without being intercepted by the Access login page
-- Cross-origin API calls from static pages to `panel.meduseld.io` (e.g. `/api/me`, `/api/sync-identity`) work because the `CF_Authorization` cookie is set on `.meduseld.io` and Cloudflare Access accepts it with `options_preflight_bypass` enabled
+- Cross-origin API calls from static pages to `panel.meduseld.io` (e.g. `/api/me`, `/api/sync-identity`) work because the `CF_Authorization` cookie is set on `.meduseld.io` and Cloudflare Access accepts it with `options_preflight_bypass` enabled. These calls use `redirect: 'manual'` so that if Cloudflare Access intercepts the request (expired/missing cookie), the browser returns an opaque redirect instead of navigating the page to the login flow. `auth.js` treats opaque redirects as non-critical failures.
 - The Jellyfin auto-login script avoids cross-origin issues by calling `/api/jellyfin-auth` as a same-origin request on `jellyfin.meduseld.io` — the catch-all route handles it server-side
 
 ### Dev Mode Auth
@@ -303,6 +317,8 @@ After the first admin is set, subsequent admins can be promoted from the admin p
 ```
 /srv
 ├── ai-cli
+├── apps
+│   └── exspire
 ├── backups
 ├── compatibilitytools
 │   └── GE-Proton10-32
