@@ -529,6 +529,7 @@ Multiplayer trivia game with lobby system using WebSocket (Flask-SocketIO). User
 - Correct answer highlighted green, wrong answers red. Score badge updates. Progress dots update.
 - 5-second pause between questions, then next question auto-advances
 - After final question, server emits `game_over` with standings sorted by score
+- Host sees an "End Game" button in the question header. Clicking it (with confirm dialog) ends the game early — shows standings but no stats are recorded to the leaderboard. Server emits `game_aborted` instead of `game_over`.
 
 ### Multiplayer Results
 

@@ -594,6 +594,7 @@ Events (client → server):
 - `start_game` — Host-only. Fetches questions from Open Trivia DB, starts countdown, then delivers questions.
 - `submit_answer` — Submit answer for current question. Data: `{code, answer}`. When all players answer (or 20s timer expires), server reveals answer and advances.
 - `kick_player` — Host-only, waiting state only. Data: `{code, user_id}`. Removes player from lobby.
+- `end_game` — Host-only, playing/countdown states. Data: `{code}`. Ends the game early without persisting any `TriviaWin` rows.
 
 Events (server → client):
 
@@ -607,6 +608,7 @@ Events (server → client):
 - `player_answered` — Someone answered (not what). Data: `{user_id, question_index, lobby}`.
 - `answer_reveal` — Correct answer + per-player results. Data: `{correct_answer, player_results, question_index}`.
 - `game_over` — Final standings. Data: `{standings}`. Server persists all player results as `TriviaWin` rows.
+- `game_aborted` — Game ended early by host. Data: `{standings}`. No stats persisted.
 
 ### Profile & Achievements Endpoint (via health proxy)
 
