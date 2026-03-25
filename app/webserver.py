@@ -158,6 +158,12 @@ def picker_on_disconnect():
     logger.info("Picker client disconnected: %s", request.sid)
 
 
+# ================= SOCKETIO (Remote Desktop Signaling) =================
+from remote_ws import register_remote_ws, remote_sessions, cleanup_expired_sessions
+
+register_remote_ws(socketio)
+
+
 # ================= LOGGING =================
 
 # Ensure log directory exists
@@ -4495,6 +4501,33 @@ def check_service(service):
                     return _picker_cors(jsonify({"error": "Delete failed"}), 500)
 
             return _picker_cors(jsonify({"error": "Method not allowed"}), 405)
+
+    # Remote Desktop sessions — list active sessions (public, authenticated users only)
+    if service == "remote-sessions":
+
+        def _remote_cors(resp, status=200):
+            if isinstance(resp, tuple):
+                response = make_response(resp[0], resp[1])
+            else:
+                response = make_response(resp, status)
+            origin = request.headers.get("Origin")
+            if origin and "meduseld.io" in origin:
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+                response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+            return response
+
+        if request.method == "OPTIONS":
+            return _remote_cors("", 204)
+
+        if request.method == "GET":
+            from remote_ws import remote_sessions as rs, cleanup_expired_sessions
+
+            cleanup_expired_sessions(socketio)
+            sessions_list = [s.to_dict() for s in rs.values() if not s.is_expired()]
+            return _remote_cors(jsonify({"sessions": sessions_list}), 200)
+
+        return _remote_cors(jsonify({"error": "Method not allowed"}), 405)
 
     # FellowSync active rooms — public, no auth needed
     if service == "fellowsync-rooms":
