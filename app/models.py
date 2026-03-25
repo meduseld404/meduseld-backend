@@ -462,3 +462,57 @@ class UserAchievement(db.Model):
             "category": defn.get("category", "general"),
             "unlocked_at": self.unlocked_at.isoformat() if self.unlocked_at else None,
         }
+
+
+class PickerGame(db.Model):
+    __tablename__ = "picker_games"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(256), nullable=False)
+    image_url = db.Column(db.String(512))
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    added_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    creator = db.relationship("User", backref="picker_games")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "image_url": self.image_url,
+            "is_active": self.is_active,
+            "added_by": self.added_by,
+            "added_by_name": (
+                (self.creator.display_name or self.creator.username) if self.creator else None
+            ),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class WeeklyPick(db.Model):
+    __tablename__ = "weekly_picks"
+
+    id = db.Column(db.Integer, primary_key=True)
+    game_id = db.Column(db.Integer, db.ForeignKey("picker_games.id"), nullable=False)
+    spun_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    spun_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    week_start = db.Column(db.Date, unique=True, nullable=False)
+
+    game = db.relationship("PickerGame", backref="picks")
+    spinner = db.relationship("User", backref="weekly_picks")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "game_id": self.game_id,
+            "game_name": self.game.name if self.game else None,
+            "game_image": self.game.image_url if self.game else None,
+            "spun_by": self.spun_by,
+            "spun_by_name": (
+                (self.spinner.display_name or self.spinner.username) if self.spinner else None
+            ),
+            "spun_by_avatar": self.spinner.avatar_url if self.spinner else None,
+            "spun_at": self.spun_at.isoformat() if self.spun_at else None,
+            "week_start": self.week_start.isoformat() if self.week_start else None,
+        }

@@ -23,7 +23,7 @@ import sys
 import json
 from collections import deque
 from functools import wraps
-from datetime import datetime
+from datetime import datetime, timezone, date, timedelta
 import socket
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
@@ -3395,6 +3395,103 @@ def check_service(service):
 
         return _media_cors(jsonify({"error": "Method not allowed"}), 405)
 
+    # Jellyseerr auth — authenticates the user against Jellyseerr using their
+    # Jellyfin credentials. Ensures the Jellyfin account exists first (via
+    # _jellyfin_auth_inner), then POSTs to Jellyseerr's /api/v1/auth/jellyfin.
+    # Returns the connect.sid session cookie so the client can set it on
+    # requests.meduseld.io via a redirect through the seerr-login proxy page.
+    if service == "seerr-auth":
+
+        def _seerr_cors(resp, status=200):
+            if isinstance(resp, tuple):
+                response = make_response(resp[0], resp[1])
+            else:
+                response = make_response(resp, status)
+            origin = request.headers.get("Origin")
+            if origin and "meduseld.io" in origin:
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+                response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+            return response
+
+        if request.method == "OPTIONS":
+            return _seerr_cors("", 204)
+
+        user = _authenticate_from_cookie()
+        if not user:
+            return _seerr_cors(jsonify({"error": "Authentication required"}), 401)
+
+        if request.method == "GET":
+            g.user = user
+            seerr_url = config.JELLYSEERR_INTERNAL_URL
+
+            # Ensure Jellyfin account exists and credentials are current
+            try:
+                _jellyfin_auth_inner()
+            except Exception as e:
+                logger.error("seerr-auth: Failed to provision Jellyfin account: %s", e)
+                return _seerr_cors(jsonify({"error": "Failed to prepare Jellyfin account"}), 500)
+
+            # Reload user to get fresh jellyfin credentials
+            from models import User as UserModel
+
+            user = UserModel.query.get(user.id)
+            if not user or not user.jellyfin_password:
+                return _seerr_cors(jsonify({"error": "No Jellyfin credentials available"}), 500)
+
+            jf_username = user.display_name or user.username
+
+            # Look up actual Jellyfin username from stored user ID
+            if user.jellyfin_user_id:
+                try:
+                    jf_resp = requests.get(
+                        f"{config.JELLYFIN_INTERNAL_URL}/Users/{user.jellyfin_user_id}",
+                        headers={"X-Emby-Token": config.JELLYFIN_API_KEY},
+                        timeout=10,
+                    )
+                    if jf_resp.ok:
+                        jf_username = jf_resp.json().get("Name", jf_username)
+                except Exception as e:
+                    logger.warning("seerr-auth: Could not look up Jellyfin username: %s", e)
+
+            # Authenticate against Jellyseerr
+            try:
+                seerr_resp = requests.post(
+                    f"{seerr_url}/api/v1/auth/jellyfin",
+                    json={"username": jf_username, "password": user.jellyfin_password},
+                    timeout=10,
+                )
+                if seerr_resp.status_code != 200:
+                    logger.error(
+                        "seerr-auth: Jellyseerr auth failed (status=%s): %s",
+                        seerr_resp.status_code,
+                        seerr_resp.text[:200],
+                    )
+                    return _seerr_cors(jsonify({"error": "Jellyseerr authentication failed"}), 502)
+
+                # Extract connect.sid cookie from Jellyseerr response
+                connect_sid = None
+                for cookie in seerr_resp.cookies:
+                    if cookie.name == "connect.sid":
+                        connect_sid = cookie.value
+                        break
+
+                if not connect_sid:
+                    logger.error("seerr-auth: No connect.sid cookie in Jellyseerr response")
+                    return _seerr_cors(jsonify({"error": "No session cookie returned"}), 502)
+
+                return _seerr_cors(jsonify({"connect_sid": connect_sid}), 200)
+
+            except requests.Timeout:
+                logger.error("seerr-auth: Jellyseerr request timed out")
+                return _seerr_cors(jsonify({"error": "Jellyseerr timeout"}), 504)
+            except Exception as e:
+                logger.error("seerr-auth: Jellyseerr auth request failed: %s", e)
+                return _seerr_cors(jsonify({"error": f"Jellyseerr error: {e}"}), 500)
+
+        return _seerr_cors(jsonify({"error": "Method not allowed"}), 405)
+
     # Games list API — manages the "Games Up Next" list entries.
     # GET returns all games (public). POST adds a game (authenticated).
     # DELETE via /check/games-<app_id> removes a game (admin only) and its votes.
@@ -4138,6 +4235,176 @@ def check_service(service):
                 return _cors_response(jsonify({"error": "Update failed"}), 500)
 
         return _cors_response(jsonify({"error": "Method not allowed"}), 405)
+
+    # Party Game Picker API — manages the game pool and weekly spins.
+    if (
+        service == "picker-current"
+        or service == "picker-spin"
+        or service == "picker-history"
+        or service == "picker-games"
+        or service.startswith("picker-games-")
+    ):
+
+        def _picker_cors(resp, status=200):
+            if isinstance(resp, tuple):
+                response = make_response(resp[0], resp[1])
+            else:
+                response = make_response(resp, status)
+            origin = request.headers.get("Origin")
+            if origin and "meduseld.io" in origin:
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+                response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+            return response
+
+        if request.method == "OPTIONS":
+            return _picker_cors("", 204)
+
+        # GET /check/picker-current — public, no auth needed
+        if service == "picker-current":
+            if request.method == "GET":
+                from models import WeeklyPick
+
+                today = date.today()
+                monday = today - timedelta(days=today.weekday())
+                pick = WeeklyPick.query.filter_by(week_start=monday).first()
+                if pick:
+                    return _picker_cors(jsonify({"pick": pick.to_dict()}), 200)
+                return _picker_cors(jsonify({"pick": None}), 200)
+            return _picker_cors(jsonify({"error": "Method not allowed"}), 405)
+
+        # POST /check/picker-spin — authenticated, one spin per week (admins can re-spin)
+        if service == "picker-spin":
+            if request.method != "POST":
+                return _picker_cors(jsonify({"error": "Method not allowed"}), 405)
+
+            user = _authenticate_from_cookie()
+            if not user:
+                return _picker_cors(jsonify({"error": "Authentication required"}), 401)
+
+            from models import WeeklyPick, PickerGame
+            from database import db
+            import random
+
+            today = date.today()
+            monday = today - timedelta(days=today.weekday())
+            existing = WeeklyPick.query.filter_by(week_start=monday).first()
+
+            if existing and user.role != "admin":
+                return _picker_cors(
+                    jsonify({"error": "Already spun this week", "pick": existing.to_dict()}), 409
+                )
+
+            active_games = PickerGame.query.filter_by(is_active=True).all()
+            if not active_games:
+                return _picker_cors(jsonify({"error": "No games in the pool"}), 400)
+
+            chosen = random.choice(active_games)
+
+            try:
+                if existing:
+                    existing.game_id = chosen.id
+                    existing.spun_by = user.id
+                    existing.spun_at = datetime.now(timezone.utc)
+                else:
+                    pick = WeeklyPick(
+                        game_id=chosen.id,
+                        spun_by=user.id,
+                        week_start=monday,
+                    )
+                    db.session.add(pick)
+                db.session.commit()
+                result = WeeklyPick.query.filter_by(week_start=monday).first()
+                logger.info("User %s spun the wheel: %s", user.username, chosen.name)
+                return _picker_cors(jsonify({"pick": result.to_dict()}), 201)
+            except Exception as e:
+                db.session.rollback()
+                logger.error("Failed to save weekly pick: %s", e)
+                return _picker_cors(jsonify({"error": "Spin failed"}), 500)
+
+        # GET /check/picker-history — public
+        if service == "picker-history":
+            if request.method == "GET":
+                from models import WeeklyPick
+
+                picks = WeeklyPick.query.order_by(WeeklyPick.week_start.desc()).limit(20).all()
+                return _picker_cors(jsonify({"history": [p.to_dict() for p in picks]}), 200)
+            return _picker_cors(jsonify({"error": "Method not allowed"}), 405)
+
+        # GET/POST /check/picker-games — list or add games
+        if service == "picker-games":
+            if request.method == "GET":
+                from models import PickerGame
+
+                games = (
+                    PickerGame.query.filter_by(is_active=True).order_by(PickerGame.name.asc()).all()
+                )
+                return _picker_cors(jsonify({"games": [g.to_dict() for g in games]}), 200)
+
+            user = _authenticate_from_cookie()
+            if not user:
+                return _picker_cors(jsonify({"error": "Authentication required"}), 401)
+            if user.role != "admin":
+                return _picker_cors(jsonify({"error": "Insufficient permissions"}), 403)
+
+            if request.method == "POST":
+                from models import PickerGame
+                from database import db
+
+                data = request.get_json()
+                if not data or not data.get("name"):
+                    return _picker_cors(jsonify({"error": "name required"}), 400)
+
+                try:
+                    game = PickerGame(
+                        name=data["name"].strip(),
+                        image_url=data.get("image_url", "").strip() or None,
+                        added_by=user.id,
+                    )
+                    db.session.add(game)
+                    db.session.commit()
+                    logger.info("Admin %s added picker game: %s", user.username, game.name)
+                    return _picker_cors(jsonify({"game": game.to_dict()}), 201)
+                except Exception as e:
+                    db.session.rollback()
+                    logger.error("Failed to add picker game: %s", e)
+                    return _picker_cors(jsonify({"error": "Add failed"}), 500)
+
+            return _picker_cors(jsonify({"error": "Method not allowed"}), 405)
+
+        # DELETE /check/picker-games-<id> — admin only, soft delete
+        if service.startswith("picker-games-"):
+            try:
+                game_id = int(service.split("picker-games-")[1])
+            except (ValueError, IndexError) as e:
+                logger.error("Invalid picker-games proxy path: %s", e)
+                return _picker_cors(jsonify({"error": "Invalid game ID"}), 400)
+
+            user = _authenticate_from_cookie()
+            if not user:
+                return _picker_cors(jsonify({"error": "Authentication required"}), 401)
+            if user.role != "admin":
+                return _picker_cors(jsonify({"error": "Insufficient permissions"}), 403)
+
+            if request.method == "DELETE":
+                from models import PickerGame
+                from database import db
+
+                game = PickerGame.query.get(game_id)
+                if not game:
+                    return _picker_cors(jsonify({"error": "Game not found"}), 404)
+
+                try:
+                    game.is_active = False
+                    db.session.commit()
+                    logger.info("Admin %s removed picker game: %s", user.username, game.name)
+                    return _picker_cors(jsonify({"ok": True}), 200)
+                except Exception as e:
+                    db.session.rollback()
+                    logger.error("Failed to remove picker game: %s", e)
+                    return _picker_cors(jsonify({"error": "Delete failed"}), 500)
+
+            return _picker_cors(jsonify({"error": "Method not allowed"}), 405)
 
     if service not in service_urls:
         return jsonify({"status": "error", "message": "Unknown service"}), 404
