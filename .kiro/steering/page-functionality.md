@@ -49,7 +49,7 @@ Each active service card has a status indicator badge that shows Online/Offline/
    - Status badge: checks Jellyfin health via Cloudflare Worker health API, shows Online/Offline/Cloudflare Tunnel Down
    - "Open Edoras" button → opens a modal with options (disabled when offline, links to status page when tunnel is down):
      - "View Library" → calls `/api/jellyfin-auth` to auto-provision a Jellyfin account and get an auth token, then navigates (same tab) to `jellyfin.meduseld.io/sso-login` which sets localStorage credentials and opens Jellyfin logged in. Falls back to navigating to Jellyfin directly if auth fails. Shows "Connecting..." spinner during auth.
-     - "Request" button → links to `https://requests.meduseld.io` (opens in new tab)
+     - "Request" button → calls `openSeerr()` which navigates to `health.meduseld.io/check/seerr-auth?cf_token=<token>`. The backend provisions the user's Jellyfin account, authenticates against Jellyseerr's API with those credentials, sets the `connect.sid` session cookie on `.meduseld.io`, and redirects to `https://requests.meduseld.io` (user arrives logged in).
      - "Manage" button (admin only) → links to `https://edoras.meduseld.io` Edoras management page. Shows gold "Admin" badge.
    - Description: "Stream movies, TV shows, and media from our Edoras server."
    - SSO login page (`/sso-login`): uses an iframe-first approach to avoid a race condition where Jellyfin's ConnectionManager overwrites localStorage credentials. Loads `/web/index.html` in a hidden iframe, polls localStorage every 250ms until Jellyfin initializes `jellyfin_credentials` with `Servers[0].Id`, then patches in `AccessToken`/`UserId` and redirects. Falls back to direct credential write after 15 seconds.
