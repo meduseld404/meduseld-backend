@@ -343,6 +343,48 @@ def _cleanup_lobby(code):
     lobby_games.pop(code, None)
 
 
+def _abort_game(code):
+    """End the game early without persisting any results."""
+    lobby = lobby_games.get(code)
+    if not lobby:
+        return
+
+    lobby.status = "results"
+
+    # Build standings but don't persist
+    standings = []
+    for uid, p in lobby.players.items():
+        standings.append(
+            {
+                "user_id": uid,
+                "display_name": p["display_name"],
+                "avatar_url": p["avatar_url"],
+                "discord_id": p["discord_id"],
+                "score": p["score"],
+                "total": len(lobby.questions),
+            }
+        )
+    standings.sort(key=lambda x: x["score"], reverse=True)
+
+    # Update DB lobby status only (no TriviaWin rows)
+    try:
+        from models import TriviaLobby
+        from database import db
+
+        db_lobby = TriviaLobby.query.filter_by(code=code).first()
+        if db_lobby:
+            db_lobby.status = "finished"
+            db_lobby.finished_at = datetime.now(timezone.utc)
+            db.session.commit()
+    except Exception as e:
+        logger.error("Failed to update lobby status for aborted game %s: %s", code, e)
+
+    socketio.emit("game_aborted", {"standings": standings}, room=code)
+    logger.info("Game aborted in lobby %s by host", code)
+
+    socketio.start_background_task(_cleanup_lobby, code)
+
+
 # ==================== SOCKET EVENT HANDLERS ====================
 
 
@@ -743,6 +785,30 @@ def on_kick_player(data):
             },
             room=code,
         )
+
+
+@socketio.on("end_game", namespace="/trivia")
+def on_end_game(data):
+    user = request.environ.get("trivia_user")
+    if not user:
+        return
+
+    code = str(data.get("code", "")).upper().strip()
+    lobby = lobby_games.get(code)
+
+    if not lobby:
+        emit("error", {"message": "Lobby not found"})
+        return
+
+    if user.id != lobby.host_user_id:
+        emit("error", {"message": "Only the host can end the game"})
+        return
+
+    if lobby.status not in ("playing", "countdown"):
+        emit("error", {"message": "No game in progress"})
+        return
+
+    _abort_game(code)
 
 
 def register_trivia_rest(app):
