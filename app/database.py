@@ -13,3 +13,8 @@ def init_db(app):
     with app.app_context():
         # Import models so they're registered with SQLAlchemy
         import models  # noqa: F401
+
+        # Create any new tables that don't exist yet.
+        # This works alongside Flask-Migrate — existing tables are untouched,
+        # only missing ones are created.
+        db.create_all()
