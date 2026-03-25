@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.8.0-alpha](https://github.com/meduseld404/meduseld-backend/compare/v0.7.0-alpha...v0.8.0-alpha) (2026-03-25)
+
+
+### New Features
+
+* **api:** Add achievement system with profile endpoint ([2df5959](https://github.com/meduseld404/meduseld-backend/commit/2df59596be873fc5fa158a88ec2937c036663803))
+* **api:** Add dynamic games list with add/delete endpoints ([6717fa2](https://github.com/meduseld404/meduseld-backend/commit/6717fa22683ef34090f48a01ba9e02a28374502d))
+* **api:** Add game voting API for Games Up Next ranking ([9e9e015](https://github.com/meduseld404/meduseld-backend/commit/9e9e0152efd55da7136a5e4d4b799043f5b31be7))
+* **api:** Add host-only end game button that skips stat tracking ([212a09c](https://github.com/meduseld404/meduseld-backend/commit/212a09c5bdb84ce8fc3e992a4210f734b2ff856d))
+* **api:** Add media-auth health proxy for Jellyfin SSO ([3040249](https://github.com/meduseld404/meduseld-backend/commit/3040249159611e1d1176a99f03bdd09490e8ff20))
+* **api:** Add multiplayer trivia lobby system with WebSocket support ([7b015f2](https://github.com/meduseld404/meduseld-backend/commit/7b015f251a44a0926bf61e5156ad93a387a91ca3))
+* **api:** Expand achievement system with server actions and custom achievements ([86c04e6](https://github.com/meduseld404/meduseld-backend/commit/86c04e6759f0b2f3741c5663fee44f65771855ac))
+* **api:** Include trivia stats in team-roster user data ([3969ff1](https://github.com/meduseld404/meduseld-backend/commit/3969ff15750c79ab8c370af60a710376a1d019be))
+
+
+### Bug Fixes
+
+* **api:** Add missing db imports to trivia endpoint handlers ([ddf21d9](https://github.com/meduseld404/meduseld-backend/commit/ddf21d99627e305ea0ea51d484f660a3963ab579))
+* **api:** Include exception details in Jellyfin auth error responses ([d7ca9de](https://github.com/meduseld404/meduseld-backend/commit/d7ca9de5be5544a5c741ebc393508f07496d9e6d))
+* **api:** Wrap achievement checker in try/except with rollback ([45fdc79](https://github.com/meduseld404/meduseld-backend/commit/45fdc79ed6c469619f1533b73c1d0777e4e19c19))
+* **config:** Add health.meduseld.io to ALLOWED_HOSTS ([40cb08d](https://github.com/meduseld404/meduseld-backend/commit/40cb08daca216c2f7537bb54e82be09e809c9d7d))
+
 ## [0.7.0-alpha](https://github.com/meduseld404/meduseld-backend/compare/v0.6.0-alpha...v0.7.0-alpha) (2026-03-24)
 
 
