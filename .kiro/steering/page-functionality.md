@@ -469,7 +469,7 @@ Public landing page for the Herugrim open-source project.
 
 File: `meduseld-site/trivia/index.html`
 
-Interactive trivia game using the Open Trivia Database API. Any authenticated user can play; wins are recorded to the backend leaderboard.
+Multiplayer trivia game with lobby system using WebSocket (Flask-SocketIO). Users can host or join lobbies to play together in real-time, or play solo. Questions from Open Trivia Database API. All game results (solo and multiplayer) are recorded to the backend leaderboard.
 
 ### Navigation
 
@@ -481,36 +481,71 @@ Interactive trivia game using the Open Trivia Database API. Any authenticated us
 - Fetches aggregated win data from `GET https://health.meduseld.io/check/trivia-leaderboard`
 - Top 3 users displayed as podium cards with medal emojis (🥇🥈🥉), avatar, display name, win count, and total correct answers
 - Users ranked 4+ shown in a table below the podium
-- Refreshes automatically after each game completes
+- Refreshes automatically after each game completes (solo or multiplayer)
 
-### Game Setup Panel
+### Lobby Browser (default view)
 
-- Number of Questions: dropdown (5, 10, 15, 20 — default 10)
+- "Host Game" button → opens create lobby form
+- "Join by Code" button → prompts for a 6-character lobby code
+- "Play Solo" button → opens solo game setup (no WebSocket needed)
+- Refresh button → re-fetches active lobbies from `GET https://health.meduseld.io/check/trivia-lobbies`
+- Lobby cards show: host name, lobby code, player count/max, question count, difficulty, category. Clicking a card joins the lobby.
+
+### Create Lobby Form
+
+- Questions: dropdown (5, 10, 15, 20 — default 10)
 - Difficulty: dropdown (Any, Easy, Medium, Hard — default Any)
-- Category: button grid loaded dynamically from `https://opentdb.com/api_category.php`. "Any Category" selected by default. Click to select one category.
-- "Start Game" button → fetches questions from `https://opentdb.com/api.php` with selected parameters, shows spinner while loading
+- Max Players: dropdown (2–12, default 8)
+- Category: dropdown loaded dynamically from `https://opentdb.com/api_category.php`
+- "Create Lobby" button → connects WebSocket to `panel.meduseld.io/trivia` namespace, emits `create_lobby` event
 
-### Game Panel (visible during gameplay)
+### Lobby Waiting Room
 
-- Header shows current question number, total questions, and running score badge
-- Category and difficulty badges per question
-- Question text with 4 multiple-choice answer buttons
-- Clicking an answer: disables all buttons, highlights correct answer green, wrong answer red. Advances to next question after 1.2 seconds.
-- Progress dots at bottom: gold = current, green = correct, red = wrong, gray = unanswered
+- Shows lobby code (with Bootstrap tooltip "Share this code with friends"), game settings summary
+- Player chips with avatars, display names, HOST badge for the host
+- Host can kick players (X icon on each non-host player chip, only visible during waiting)
+- Host sees "Start Game" button. Non-hosts see "Waiting for host to start..."
+- "Leave" button → emits `leave_lobby`, returns to browser. If host leaves, lobby closes for all players.
+- Real-time updates via WebSocket: `player_joined`, `player_left` events update the player list
 
-### Results Panel (visible after game ends)
+### WebSocket Connection
 
-- Final score with percentage
-- Contextual message based on score (100% = "Perfect score!", 80%+ = "Great job!", etc.)
-- Progress dots showing all answers at a glance
-- "Win recorded to leaderboard" badge (shown if authenticated and save succeeds)
-- "Play Again" button → returns to setup panel
+- Connects to `panel.meduseld.io` on the `/trivia` namespace
+- Auth: passes `CF_Authorization` cookie value as `token` query parameter
+- Server authenticates by decoding the JWT and looking up the user by Discord ID
+- On connect, server emits `welcome` with `{user_id}` (DB user ID) so the client can identify itself in lobby data
+- Transports: WebSocket with polling fallback
 
-### Win Recording
+### Multiplayer Gameplay
 
-- After each game, if user is authenticated, POSTs to `https://health.meduseld.io/check/trivia-record-win` with `{score, total_questions, category, _cf_token}`
-- Auth via `_cf_token` in JSON body (CF_Authorization cookie value)
-- Every completed game is recorded regardless of score
+- Host clicks "Start Game" → server fetches questions from Open Trivia DB, emits `game_starting` with countdown (5 seconds)
+- Countdown displayed as large animated number
+- Each question delivered via `question` event with shuffled answers and 20-second time limit
+- Timer bar animates from full (gold) → yellow (50%) → red (25%) → empty
+- Answer buttons use `data-idx` attributes and click event listeners (avoids HTML entity escaping issues with inline onclick)
+- Clicking an answer: disables all buttons, highlights selection, emits `submit_answer` with the raw answer string
+- `player_answered` event updates player chips (green border = answered)
+- When all players answer (or timer expires), server emits `answer_reveal` with correct answer and per-player results
+- Correct answer highlighted green, wrong answers red. Score badge updates. Progress dots update.
+- 5-second pause between questions, then next question auto-advances
+- After final question, server emits `game_over` with standings sorted by score
+
+### Multiplayer Results
+
+- Ranked scoreboard with medal emojis (🥇🥈🥉) for top 3, numbered for rest
+- Each row shows avatar, display name, "You" badge for current user, score/total
+- Winner row has gold border highlight
+- "Results recorded to leaderboard" badge (server persists all player results as TriviaWin rows)
+- "Back to Lobbies" and "Play Again" buttons
+
+### Solo Mode
+
+- Same setup as the old trivia game: questions, difficulty, category dropdowns
+- Fetches questions client-side from `https://opentdb.com/api.php` (no WebSocket needed)
+- Gameplay: question with 4 answer buttons, progress dots, score badge. "Solo" badge shown in header.
+- Advances to next question after 1.2 seconds on answer
+- Results: score with percentage, contextual message, progress dots, "Win recorded to leaderboard" badge
+- Win recording: POSTs to `https://health.meduseld.io/check/trivia-record-win` with `{score, total_questions, category, _cf_token}`
 
 ---
 

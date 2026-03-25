@@ -232,6 +232,27 @@ Table: `trivia_wins`
 
 No unique constraint — multiple wins per user are expected (one row per completed game).
 
+### TriviaLobby Model (`app/models.py`)
+
+Table: `trivia_lobbies`
+
+| Column        | Type        | Notes                                           |
+| ------------- | ----------- | ----------------------------------------------- |
+| id            | Integer     | Primary key                                     |
+| code          | String(8)   | Unique, indexed. 6-char alphanumeric lobby code |
+| host_user_id  | Integer     | FK to `users.id`                                |
+| status        | String(16)  | `waiting`, `playing`, or `finished`             |
+| num_questions | Integer     | Default 10                                      |
+| difficulty    | String(16)  | Empty string = any                              |
+| category      | String(8)   | Open Trivia DB category ID, empty = any         |
+| category_name | String(128) | Display name of category                        |
+| max_players   | Integer     | Default 8                                       |
+| created_at    | DateTime    | UTC, auto-set on creation                       |
+| started_at    | DateTime    | Set when game starts                            |
+| finished_at   | DateTime    | Set when game ends                              |
+
+Active game state (players, questions, scores, answers) is held in-memory in `trivia_ws.lobby_games` dict for speed. Only the lobby metadata and final results (via `TriviaWin`) are persisted to the database.
+
 ### UserAchievement Model (`app/models.py`)
 
 Table: `user_achievements`
@@ -400,6 +421,7 @@ After the first admin is set, subsequent admins can be promoted from the admin p
 - Config: `app/config.py`
 - Database init: `app/database.py`
 - Models: `app/models.py`
+- Trivia multiplayer: `app/trivia_ws.py`
 - Game server: `/srv/games/icarus`
 
 ### Server Directory Structure
@@ -489,7 +511,7 @@ Three lightweight Python HTTP servers run independently of the Flask app so the 
    - Triggers `meduseld-backup.service` via systemd
    - Env: `BACKUP_SECRET`
 
-Flask proxy routing (`check_service()` in `webserver.py`): requests to `health.meduseld.io/check/stats` → `127.0.0.1:5004/stats`, `/check/history` → `127.0.0.1:5004/history`, `/check/backup` → `127.0.0.1:5003/backup`, `/check/backup-status` → `127.0.0.1:5003/status`, `/check/reboot` → `127.0.0.1:5002/reboot`, `/check/system-logs` → Flask's own `api_server_logs()`, `/check/media-auth` → Jellyfin SSO auth (authenticated, calls `_jellyfin_auth_inner()` to auto-provision and authenticate a Jellyfin account, returns `{token, user_id, server_id}`), `/check/team-roster` → admin users list with trivia stats (authenticated via CF_Authorization JWT passed as `cf_token` query param or `_cf_token` in body; each user includes a `trivia` object with `games_played`, `total_correct`, `total_wrong`, `total_questions`, `best_score`, `accuracy`), `/check/team-roster-<id>` → admin user update (PUT), `/check/calendar` → calendar events list (GET) and create (POST, admin only), `/check/calendar-<id>` → delete calendar event (DELETE, admin only) or edit calendar event (PUT with `title`/`event_date`, admin only) or RSVP (PUT with `status`, any authenticated user), `/check/game-votes` → game voting (GET returns aggregated scores + user's rankings, PUT submits user's ranked list), `/check/games` → games list (GET returns all games, POST adds a game — authenticated), `/check/games-<app_id>` → delete game (DELETE, admin only — also removes associated votes), `/check/trivia-leaderboard` → trivia leaderboard (GET, public — returns aggregated wins per user sorted by win count), `/check/trivia-record-win` → record a trivia game result (POST, authenticated — body: `{score, total_questions, category?, _cf_token}`), `/check/profile` → user profile with achievements and trivia stats (GET, authenticated — runs achievement checks and returns full profile data with all achievements and their locked/unlocked status). All authenticated endpoints use `_authenticate_from_cookie()` which reads the CF_Authorization JWT from cookie, header, `cf_token` query param, or `_cf_token` in JSON body.
+Flask proxy routing (`check_service()` in `webserver.py`): requests to `health.meduseld.io/check/stats` → `127.0.0.1:5004/stats`, `/check/history` → `127.0.0.1:5004/history`, `/check/backup` → `127.0.0.1:5003/backup`, `/check/backup-status` → `127.0.0.1:5003/status`, `/check/reboot` → `127.0.0.1:5002/reboot`, `/check/system-logs` → Flask's own `api_server_logs()`, `/check/media-auth` → Jellyfin SSO auth (authenticated, calls `_jellyfin_auth_inner()` to auto-provision and authenticate a Jellyfin account, returns `{token, user_id, server_id}`), `/check/team-roster` → admin users list with trivia stats (authenticated via CF_Authorization JWT passed as `cf_token` query param or `_cf_token` in body; each user includes a `trivia` object with `games_played`, `total_correct`, `total_wrong`, `total_questions`, `best_score`, `accuracy`), `/check/team-roster-<id>` → admin user update (PUT), `/check/calendar` → calendar events list (GET) and create (POST, admin only), `/check/calendar-<id>` → delete calendar event (DELETE, admin only) or edit calendar event (PUT with `title`/`event_date`, admin only) or RSVP (PUT with `status`, any authenticated user), `/check/game-votes` → game voting (GET returns aggregated scores + user's rankings, PUT submits user's ranked list), `/check/games` → games list (GET returns all games, POST adds a game — authenticated), `/check/games-<app_id>` → delete game (DELETE, admin only — also removes associated votes), `/check/trivia-lobbies` → list active multiplayer trivia lobbies (GET, public — returns lobbies with status `waiting`), `/check/trivia-leaderboard` → trivia leaderboard (GET, public — returns aggregated wins per user sorted by win count), `/check/trivia-record-win` → record a trivia game result (POST, authenticated — body: `{score, total_questions, category?, _cf_token}`), `/check/profile` → user profile with achievements and trivia stats (GET, authenticated — runs achievement checks and returns full profile data with all achievements and their locked/unlocked status). All authenticated endpoints use `_authenticate_from_cookie()` which reads the CF_Authorization JWT from cookie, header, `cf_token` query param, or `_cf_token` in JSON body.
 
 ### Common Issues
 
@@ -552,8 +574,39 @@ When the server "goes offline" after pressing start:
 
 ### Trivia Endpoints (via health proxy)
 
+- `GET /check/trivia-lobbies` - (Public) Returns active multiplayer lobbies with status `waiting`: `{lobbies: [{code, status, settings, players, player_count, host_user_id, host_name, ...}]}`.
 - `GET /check/trivia-leaderboard` - (Public) Returns aggregated trivia wins per user: `{leaderboard: [{user_id, discord_id, display_name, avatar_url, wins, total_score, total_questions}]}`. Sorted by win count descending, then total score.
 - `POST /check/trivia-record-win` - (Authenticated) Records a completed trivia game. Body: `{score, total_questions, category?, _cf_token}`. Creates a `TriviaWin` row. Every completed game is recorded regardless of score.
+
+### Trivia WebSocket (Flask-SocketIO)
+
+Namespace: `/trivia` on `panel.meduseld.io`. Uses `flask-socketio` with `gevent` async mode. Lobby game state is held in-memory (`trivia_ws.lobby_games` dict); only final results are persisted to DB.
+
+Auth: Client passes `CF_Authorization` cookie value as `token` query parameter on connect. Server decodes the JWT (without signature verification) and looks up the user by `discord_user.id`. Unauthenticated connections are rejected.
+
+Module: `app/trivia_ws.py` — all lobby logic is isolated here. `socketio` is initialized in `trivia_ws.py` and attached to the Flask app via `socketio.init_app(app)` in `webserver.py`. The app is started with `socketio.run()` instead of `app.run()`.
+
+Events (client → server):
+
+- `create_lobby` — Create a new lobby. Data: `{num_questions, difficulty, category, category_name, max_players}`. Generates a 6-char code, persists `TriviaLobby` to DB, joins the SocketIO room.
+- `join_lobby` — Join an existing lobby. Data: `{code}`. Validates lobby exists, is waiting, not full, user not in another lobby.
+- `leave_lobby` — Leave a lobby. Data: `{code}`. If host leaves during waiting, lobby closes for all.
+- `start_game` — Host-only. Fetches questions from Open Trivia DB, starts countdown, then delivers questions.
+- `submit_answer` — Submit answer for current question. Data: `{code, answer}`. When all players answer (or 20s timer expires), server reveals answer and advances.
+- `kick_player` — Host-only, waiting state only. Data: `{code, user_id}`. Removes player from lobby.
+
+Events (server → client):
+
+- `welcome` — Sent on connect. Data: `{user_id}` (DB user ID).
+- `lobby_created` / `lobby_joined` — Lobby state after create/join. Data: `{lobby}`.
+- `player_joined` / `player_left` — Player list updates. Data: `{user_id, display_name, lobby}`.
+- `lobby_closed` — Lobby was closed. Data: `{reason}`.
+- `kicked` — You were kicked. Data: `{reason}`.
+- `game_starting` — Countdown before first question. Data: `{countdown, total_questions}`.
+- `question` — New question. Data: `{index, question, category, difficulty, answers, time_limit}`.
+- `player_answered` — Someone answered (not what). Data: `{user_id, question_index, lobby}`.
+- `answer_reveal` — Correct answer + per-player results. Data: `{correct_answer, player_results, question_index}`.
+- `game_over` — Final standings. Data: `{standings}`. Server persists all player results as `TriviaWin` rows.
 
 ### Profile & Achievements Endpoint (via health proxy)
 
@@ -590,6 +643,9 @@ When the server "goes offline" after pressing start:
 - `Flask-Migrate` — Alembic-based DB migrations
 - `psycopg2-binary` — PostgreSQL driver
 - `PyJWT` — JWT decoding for Cloudflare Access tokens
+- `flask-socketio` — WebSocket support for trivia multiplayer lobbies
+- `gevent` — Async worker for Flask-SocketIO
+- `gevent-websocket` — WebSocket transport for gevent
 
 ## Release Pipeline
 
