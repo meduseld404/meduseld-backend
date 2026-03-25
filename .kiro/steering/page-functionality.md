@@ -31,7 +31,7 @@ Central navigation hub. All service cards check live status via a Cloudflare Wor
 - "Changelog" button → opens a modal with two tabs (Site and Backend). Fetches CHANGELOG.md from each GitHub repo (`raw.githubusercontent.com`) on first open, renders markdown to styled HTML. Shows spinner while loading, error message on failure.
 - Discord widget (Widgetbot Crate) → embedded chat bubble in bottom-right, links to server channel `1474674474036232204`
 - Speech bubble notification → appears after 3 seconds, fades after 8 seconds, says "Server suggestion or problem? Send a Discord message!"
-- Profile widget (top-right, inside header nav bar) → shows avatar, display name, and Admin badge for admins. Dropdown includes: username, role, "Admin Panel" link (admin only, links to `https://admin.meduseld.io`), "My Profile" link (links to `https://profile.meduseld.io`), and Logout (redirects to `https://meduseld.io`)
+- Profile widget (top-right, inside header nav bar) → shows avatar, display name, and Admin badge for admins. Dropdown includes: username, role, "My Profile" link (links to `https://profile.meduseld.io`), "Admin Panel" link (admin only, links to `https://admin.meduseld.io`), and Logout (redirects to `https://meduseld.io`)
 - Calendar widget (centered, between page title and news panel) → shows upcoming group events fetched from `health.meduseld.io/check/calendar` (proxied through health to bypass Cloudflare Access). Displays event title, date/time, and optional description. Each event has RSVP buttons (going/maybe/not going) with counts — clicking sets your status, clicking the same status again removes it, hovering shows names of users who selected that option. Admins see a "+" button to add events (opens modal with title, date/time, description fields), edit buttons (pencil icon, opens edit modal pre-filled with event data), and delete buttons on each event. Events auto-load on page load. Auth via `cf_token` query param (GET/DELETE) or `_cf_token` in JSON body (POST/PUT).
 - Copyright footer with quietarcade link and dynamic version badge (fetches latest release from GitHub API, links to release page)
 
@@ -229,7 +229,7 @@ Authenticated Flask page for controlling the Icarus dedicated game server. Requi
 - "Backup" dropdown:
   - "Download Backup" → `GET /download-backup` (downloads file)
   - "Backup to Cloud" → `GET /backup-to-cloud` (triggers Google Drive upload)
-- Profile widget (top-right) → same shared `auth.js` `renderProfile()` widget used on all pages. Shows avatar, display name, Admin badge for admins. Dropdown includes: username, role, "Admin Panel" link (admin only), "My Profile" link (links to `https://profile.meduseld.io`), and Logout (redirects to `https://meduseld.io`).
+- Profile widget (top-right) → same shared `auth.js` `renderProfile()` widget used on all pages. Shows avatar, display name, Admin badge for admins. Dropdown includes: username, role, "My Profile" link (links to `https://profile.meduseld.io`), "Admin Panel" link (admin only), and Logout (redirects to `https://meduseld.io`).
 
 ### Development Mode
 
@@ -455,6 +455,7 @@ Each card has an icon, title, description, and "Open" button that opens the serv
 5. **qBittorrent** → `https://qb.meduseld.io` — Download client management
 6. **Chaptarr** → `https://chaptarr.meduseld.io` — Book management and automation
 7. **Bazarr** → `https://bazarr.meduseld.io` — Subtitle management and automation
+8. **Maintainerr** → `https://maintainerr.meduseld.io` — Media collection maintenance and cleanup
 
 ---
 
