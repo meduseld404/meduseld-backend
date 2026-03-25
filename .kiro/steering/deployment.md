@@ -140,7 +140,8 @@ Cloudflare Worker (`worker.js`) that acts as an OIDC identity provider bridging 
 - **User**: `meduseld`
 - **Host**: localhost:5432
 - **ORM**: Flask-SQLAlchemy with Flask-Migrate
-- **Files**: `app/database.py` (init), `app/models.py` (models)
+- **Files**: `app/database.py` (init + `db.create_all()`), `app/models.py` (models)
+- **Auto-create**: `db.create_all()` runs on every app startup, creating any missing tables automatically. Existing tables are untouched.
 - **Dev mode**: Uses SQLite at `app/meduseld_dev.db` instead of PostgreSQL
 
 ### User Model (`app/models.py`)
