@@ -3395,11 +3395,10 @@ def check_service(service):
 
         return _media_cors(jsonify({"error": "Method not allowed"}), 405)
 
-    # Jellyseerr auth — authenticates the user against Jellyseerr using their
-    # Jellyfin credentials. Ensures the Jellyfin account exists first (via
-    # _jellyfin_auth_inner), then POSTs to Jellyseerr's /api/v1/auth/jellyfin.
-    # Sets the connect.sid cookie on .meduseld.io so it's sent to
-    # requests.meduseld.io, then redirects the user there.
+    # Jellyseerr auth — provisions the user's Jellyfin account, then serves
+    # an HTML page that POSTs the credentials to Jellyseerr's auth endpoint
+    # directly from the browser. This ensures Jellyseerr sets its own
+    # connect.sid cookie on the correct domain (requests.meduseld.io).
     if service == "seerr-auth":
 
         def _seerr_cors(resp, status=200):
@@ -3424,7 +3423,6 @@ def check_service(service):
 
         if request.method == "GET":
             g.user = user
-            seerr_url = config.JELLYSEERR_INTERNAL_URL
 
             # Ensure Jellyfin account exists and credentials are current
             try:
@@ -3455,52 +3453,56 @@ def check_service(service):
                 except Exception as e:
                     logger.warning("seerr-auth: Could not look up Jellyfin username: %s", e)
 
-            # Authenticate against Jellyseerr
-            try:
-                seerr_resp = requests.post(
-                    f"{seerr_url}/api/v1/auth/jellyfin",
-                    json={"username": jf_username, "password": user.jellyfin_password},
-                    timeout=10,
-                )
-                if seerr_resp.status_code != 200:
-                    logger.error(
-                        "seerr-auth: Jellyseerr auth failed (status=%s): %s",
-                        seerr_resp.status_code,
-                        seerr_resp.text[:200],
-                    )
-                    return _seerr_cors(jsonify({"error": "Jellyseerr authentication failed"}), 502)
-
-                # Extract connect.sid cookie from Jellyseerr response
-                connect_sid = None
-                for cookie in seerr_resp.cookies:
-                    if cookie.name == "connect.sid":
-                        connect_sid = cookie.value
-                        break
-
-                if not connect_sid:
-                    logger.error("seerr-auth: No connect.sid cookie in Jellyseerr response")
-                    return _seerr_cors(jsonify({"error": "No session cookie returned"}), 502)
-
-                # Redirect to Jellyseerr with the session cookie set on
-                # .meduseld.io so the browser sends it to requests.meduseld.io
-                response = make_response(redirect("https://requests.meduseld.io"))
-                response.set_cookie(
-                    "connect.sid",
-                    connect_sid,
-                    domain=".meduseld.io",
-                    path="/",
-                    httponly=True,
-                    secure=True,
-                    samesite="Lax",
-                )
-                return response
-
-            except requests.Timeout:
-                logger.error("seerr-auth: Jellyseerr request timed out")
-                return _seerr_cors(jsonify({"error": "Jellyseerr timeout"}), 504)
-            except Exception as e:
-                logger.error("seerr-auth: Jellyseerr auth request failed: %s", e)
-                return _seerr_cors(jsonify({"error": f"Jellyseerr error: {e}"}), 500)
+            # Serve an HTML page that POSTs credentials to Jellyseerr from
+            # the browser. This way Jellyseerr sets its own connect.sid
+            # cookie on requests.meduseld.io (correct domain scope).
+            return (
+                f"""<!DOCTYPE html>
+<html>
+<head><title>Connecting to Jellyseerr...</title></head>
+<body style="background:#0b1f14;color:#e6c65c;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+<div id="status" style="text-align:center;">
+<div style="margin-bottom:16px;"><div style="width:40px;height:40px;border:3px solid #e6c65c;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div></div>
+<p>Connecting to Jellyseerr...</p>
+</div>
+<style>@keyframes spin{{from{{transform:rotate(0deg)}}to{{transform:rotate(360deg)}}}}</style>
+<script>
+(function() {{
+    // Clear any stale connect.sid cookie from .meduseld.io (old approach)
+    document.cookie = "connect.sid=; domain=.meduseld.io; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=lax";
+    var u = {json.dumps(jf_username)};
+    var p = {json.dumps(user.jellyfin_password)};
+    fetch("https://requests.meduseld.io/api/v1/auth/jellyfin", {{
+        method: "POST",
+        headers: {{"Content-Type": "application/json"}},
+        credentials: "include",
+        body: JSON.stringify({{username: u, password: p}})
+    }})
+    .then(function(r) {{
+        if (r.ok) {{
+            window.location.replace("https://requests.meduseld.io");
+        }} else {{
+            r.text().then(function(t) {{
+                console.error("Jellyseerr auth failed (" + r.status + "):", t);
+                document.getElementById("status").innerHTML =
+                    '<p style="color:#ff6b6b;">Authentication failed (' + r.status + ')</p>' +
+                    '<a href="https://requests.meduseld.io" style="color:#e6c65c;">Go to Jellyseerr</a>';
+            }});
+        }}
+    }})
+    .catch(function(e) {{
+        console.error("Jellyseerr auth request failed:", e);
+        document.getElementById("status").innerHTML =
+            '<p style="color:#ff6b6b;">Connection failed</p>' +
+            '<a href="https://requests.meduseld.io" style="color:#e6c65c;">Go to Jellyseerr</a>';
+    }});
+}})();
+</script>
+</body>
+</html>""",
+                200,
+                {"Content-Type": "text/html", "Cache-Control": "no-store"},
+            )
 
         return _seerr_cors(jsonify({"error": "Method not allowed"}), 405)
 
