@@ -556,6 +556,24 @@ Multiplayer trivia game with lobby system using WebSocket (Flask-SocketIO). User
 - After final question, server emits `game_over` with standings sorted by score
 - Host sees an "End Game" button in the question header. Clicking it (with confirm dialog) ends the game early — shows standings but no stats are recorded to the leaderboard. Server emits `game_aborted` instead of `game_over`.
 
+### Sudden Death Tiebreaker
+
+When the regular game ends with two or more players tied for first place, sudden death begins automatically instead of going to results.
+
+- Server emits `sudden_death` event with the tied players' info and their shared score
+- 4-second dramatic announcement screen: crossed swords emoji, "Sudden Death" heading, player names ("X vs Y"), tied score, and contextual message (dueling players see "First mistake loses", spectators see "You're spectating")
+- Server fetches up to 10 extra questions from the same category/difficulty settings
+- Only the tied players can submit answers — all other players see a "Spectating" badge and have their inputs disabled (buttons disabled + reduced opacity, flag input disabled with "Spectating..." placeholder)
+- Question cards switch to red theme (red border, red header background, red timer bar) with "⚔️ Sudden Death" badge. Header shows "Sudden Death Round X" instead of question number.
+- End Game button is hidden during sudden death
+- Progress dots are hidden during sudden death
+- Elimination: when at least one dueling player answers correctly and at least one answers wrong, the wrong players are eliminated. Survivors get +1 score to pull ahead in standings.
+- If all dueling players answer correctly or all answer wrong, the round continues with no elimination
+- Not answering in time counts as a wrong answer
+- If all 10 sudden death questions are exhausted without resolution, the game ends as-is (shared first place)
+- After sudden death resolves, the normal game_over flow runs (results persisted, leaderboard updated)
+- Spectators' answers during sudden death are accepted by the server but do not affect their score
+
 ### Multiplayer Results
 
 - Ranked scoreboard with medal emojis (🥇🥈🥉) for top 3, numbered for rest

@@ -691,6 +691,7 @@ Events (server → client):
 - `game_over` — Final standings. Data: `{standings}`. Server persists all player results as `TriviaWin` rows.
 - `game_aborted` — Game ended early by host. Data: `{standings}`. No stats persisted.
 - `lobby_reset` — Lobby reset for play again. Data: `{lobby}`. Sent to all players when host triggers `play_again`. Lobby returns to waiting state with updated settings.
+- `sudden_death` — Sudden death tiebreaker started. Data: `{players: [{user_id, display_name, avatar_url}], score}`. Sent when the regular game ends with tied top players. Server fetches up to 10 extra questions and delivers them one at a time. Only tied players' answers count for scoring; spectators can see questions but their answers are ignored. First dueling player to answer wrong while another answers right is eliminated.
 
 ### Profile & Achievements Endpoint (via health proxy)
 
