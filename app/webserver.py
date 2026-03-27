@@ -3444,7 +3444,17 @@ def check_service(service):
 
             # Ensure Jellyfin account exists and credentials are current
             try:
-                _jellyfin_auth_inner()
+                jf_result = _jellyfin_auth_inner()
+                # Check if _jellyfin_auth_inner returned an error
+                if isinstance(jf_result, tuple) and len(jf_result) == 2:
+                    status_code = jf_result[1]
+                    if status_code >= 400:
+                        logger.error(
+                            "seerr-auth: Jellyfin provisioning failed with status %d", status_code
+                        )
+                        return _seerr_cors(
+                            jsonify({"error": "Failed to prepare Jellyfin account"}), 502
+                        )
             except Exception as e:
                 logger.error("seerr-auth: Failed to provision Jellyfin account: %s", e)
                 return _seerr_cors(jsonify({"error": "Failed to prepare Jellyfin account"}), 500)
@@ -3476,21 +3486,34 @@ def check_service(service):
             # extract the connect.sid session cookie from the response, set it
             # on .meduseld.io (covers requests.meduseld.io), and redirect.
             try:
+                logger.info(
+                    "seerr-auth: Authenticating user '%s' with Jellyseerr at %s",
+                    jf_username,
+                    config.JELLYSEERR_INTERNAL_URL,
+                )
                 seerr_resp = requests.post(
                     f"{config.JELLYSEERR_INTERNAL_URL}/api/v1/auth/jellyfin",
                     json={"username": jf_username, "password": user.jellyfin_password},
                     headers={"Content-Type": "application/json"},
                     timeout=10,
                 )
+            except requests.ConnectionError as e:
+                logger.error(
+                    "seerr-auth: Cannot connect to Jellyseerr at %s: %s",
+                    config.JELLYSEERR_INTERNAL_URL,
+                    e,
+                )
+                return _seerr_cors(jsonify({"error": "Could not reach Jellyseerr"}), 502)
             except Exception as e:
                 logger.error("seerr-auth: Jellyseerr auth request failed: %s", e)
                 return _seerr_cors(jsonify({"error": "Could not reach Jellyseerr"}), 502)
 
             if not seerr_resp.ok:
                 logger.error(
-                    "seerr-auth: Jellyseerr auth returned %d: %s",
+                    "seerr-auth: Jellyseerr auth returned %d for user '%s': %s",
                     seerr_resp.status_code,
-                    seerr_resp.text[:200],
+                    jf_username,
+                    seerr_resp.text[:500],
                 )
                 return _seerr_cors(jsonify({"error": "Jellyseerr authentication failed"}), 502)
 
