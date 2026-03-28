@@ -26,6 +26,10 @@ socketio = SocketIO(
 # In-memory lobby state: code -> LobbyState
 lobby_games = {}
 
+# Flask app reference — set by register_trivia_rest() so background tasks
+# can push an app context for DB operations.
+_flask_app = None
+
 
 class LobbyState:
     """In-memory state for an active lobby."""
@@ -256,9 +260,10 @@ def _get_countries():
             countries = []
             for c in data:
                 common = c.get("name", {}).get("common", "")
+                cca2 = c.get("cca2", "")
                 flag_url = c.get("flags", {}).get("svg") or c.get("flags", {}).get("png", "")
-                if common and flag_url:
-                    countries.append({"name": common, "flag": flag_url, "cca2": c.get("cca2", "")})
+                if common and cca2:
+                    countries.append({"name": common, "flag": flag_url, "cca2": cca2})
             _countries_cache = countries
             logger.info("Cached %d countries from REST Countries API", len(countries))
             return countries
@@ -318,7 +323,7 @@ def _fetch_flag_questions(settings):
     for c in selected:
         questions.append(
             {
-                "question": c["flag"],  # Flag image URL
+                "question": c["cca2"].lower(),  # Country code (client builds flag URL)
                 "correct_answer": c["name"],
                 "incorrect_answers": [],  # Not used for text-input mode
                 "category": "Country Flags",
@@ -357,7 +362,7 @@ def _prepare_question(q, index):
     if q.get("type") == "flags":
         return {
             "index": index,
-            "question": q["question"],  # Flag image URL
+            "question": q["question"],  # Country code (client builds flag URL)
             "category": q["category"],
             "difficulty": q["difficulty"],
             "answers": [],  # Empty for text-input mode
@@ -665,6 +670,7 @@ def _finalize_game(code):
     lobby.status = "results"
 
     # Build final standings sorted by score desc
+    num_questions = lobby.settings.get("num_questions", len(lobby.questions))
     standings = []
     for uid, p in lobby.players.items():
         standings.append(
@@ -674,7 +680,7 @@ def _finalize_game(code):
                 "avatar_url": p["avatar_url"],
                 "discord_id": p["discord_id"],
                 "score": p["score"],
-                "total": len(lobby.questions),
+                "total": num_questions,
             }
         )
     standings.sort(key=lambda x: x["score"], reverse=True)
@@ -684,42 +690,50 @@ def _finalize_game(code):
         from models import TriviaWin
         from database import db
 
-        cat_name = lobby.settings.get("category_name", "")
-        persisted = 0
-        for uid, p in lobby.players.items():
-            if not p["connected"] and p["score"] == 0:
-                continue  # Skip fully disconnected players with no score
-            win = TriviaWin(
-                user_id=uid,
-                score=p["score"],
-                total_questions=len(lobby.questions),
-                category=cat_name,
-            )
-            db.session.add(win)
-            persisted += 1
-        db.session.commit()
-        logger.info("Persisted %d trivia results for lobby %s", persisted, code)
-    except Exception as e:
-        logger.error("Failed to persist trivia results for lobby %s: %s", code, e)
+        # Background tasks (gevent greenlets) don't inherit the Flask app
+        # context, so push one explicitly for DB operations.
+        ctx = _flask_app.app_context() if _flask_app else None
+        if ctx:
+            ctx.push()
         try:
-            from database import db
-
-            db.session.rollback()
-        except Exception as rollback_err:
-            logger.error("Failed to rollback after trivia persist error: %s", rollback_err)
-
-    # Update DB lobby status
-    try:
-        from models import TriviaLobby
-        from database import db
-
-        db_lobby = TriviaLobby.query.filter_by(code=code).first()
-        if db_lobby:
-            db_lobby.status = "finished"
-            db_lobby.finished_at = datetime.now(timezone.utc)
+            cat_name = lobby.settings.get("category_name", "")
+            persisted = 0
+            for uid, p in lobby.players.items():
+                if not p["connected"] and p["score"] == 0:
+                    continue  # Skip fully disconnected players with no score
+                win = TriviaWin(
+                    user_id=uid,
+                    score=p["score"],
+                    total_questions=lobby.settings.get("num_questions", len(lobby.questions)),
+                    category=cat_name,
+                )
+                db.session.add(win)
+                persisted += 1
             db.session.commit()
+            logger.info("Persisted %d trivia results for lobby %s", persisted, code)
+        except Exception as e:
+            logger.error("Failed to persist trivia results for lobby %s: %s", code, e)
+            try:
+                db.session.rollback()
+            except Exception as rollback_err:
+                logger.error("Failed to rollback after trivia persist error: %s", rollback_err)
+
+        # Update DB lobby status
+        try:
+            from models import TriviaLobby
+
+            db_lobby = TriviaLobby.query.filter_by(code=code).first()
+            if db_lobby:
+                db_lobby.status = "finished"
+                db_lobby.finished_at = datetime.now(timezone.utc)
+                db.session.commit()
+        except Exception as e:
+            logger.error("Failed to update lobby status for %s: %s", code, e)
+        finally:
+            if ctx:
+                ctx.pop()
     except Exception as e:
-        logger.error("Failed to update lobby status for %s: %s", code, e)
+        logger.error("Failed to set up DB context for lobby %s: %s", code, e)
 
     socketio.emit("game_over", {"standings": standings}, room=code, namespace="/trivia")
 
@@ -751,6 +765,7 @@ def _abort_game(code):
     lobby.status = "results"
 
     # Build standings but don't persist
+    num_questions = lobby.settings.get("num_questions", len(lobby.questions))
     standings = []
     for uid, p in lobby.players.items():
         standings.append(
@@ -760,7 +775,7 @@ def _abort_game(code):
                 "avatar_url": p["avatar_url"],
                 "discord_id": p["discord_id"],
                 "score": p["score"],
-                "total": len(lobby.questions),
+                "total": num_questions,
             }
         )
     standings.sort(key=lambda x: x["score"], reverse=True)
@@ -1302,5 +1317,7 @@ def register_trivia_rest(app):
     """Register REST endpoints for trivia lobbies on the Flask app.
     Note: This is a no-op — lobby listing is handled inside check_service()
     in webserver.py via the 'trivia-lobbies' service name. This function
-    exists so the import in webserver.py doesn't break."""
-    pass
+    stores the Flask app reference so background tasks can push an app
+    context for DB operations."""
+    global _flask_app
+    _flask_app = app

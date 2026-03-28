@@ -604,6 +604,7 @@ Custom trivia category available in both multiplayer and solo modes. Players see
 - Answer validation: case-insensitive fuzzy matching with common aliases (USA, UK, Holland, etc.) and normalized comparison (strips articles like "The", "Republic of", removes accents)
 - Question format: `type: "flags"` field distinguishes flag questions from standard multiple-choice. `question` field contains the flag SVG URL. `answers` array is empty (text input, not multiple choice).
 - No difficulty levels — difficulty dropdown is disabled when this category is selected
+- Autocomplete dropdown: as the user types, a dropdown appears above the input showing up to 8 matching country names (substring match). Navigate with arrow keys, select with Enter or click, dismiss with Escape. Tab also accepts the highlighted suggestion. Country names are fetched once from REST Countries API and cached for the session. Works in both multiplayer and solo modes.
 
 ---
 
