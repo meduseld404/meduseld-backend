@@ -183,12 +183,15 @@ def build_page_html(title, display_title, body_html, css, all_titles):
         r'<span class="mw-editsection">.*?</span></span>', "", body_html, flags=re.DOTALL
     )
 
+    # Strip HTML tags from display_title for the <title> element
+    plain_title = re.sub(r"<[^>]+>", "", display_title)
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{display_title} - Icarus Wiki</title>
+<title>{plain_title} - Icarus Wiki</title>
 {css}
 <style>
 body {{ background: #1a1a2e; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; }}
