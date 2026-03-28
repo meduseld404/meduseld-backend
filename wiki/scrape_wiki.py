@@ -173,9 +173,11 @@ def build_page_html(title, display_title, body_html, css, all_titles):
         return match.group(0)
 
     body_html = re.sub(r'href="(/wiki/[^"]*)"', rewrite_link, body_html)
-    # Make relative image/resource URLs absolute so browsers load from wiki.gg
-    body_html = re.sub(r'src="(/[^"]*)"', f'src="{WIKI_BASE}\\1"', body_html)
-    body_html = re.sub(r'srcset="(/[^"]*)"', f'srcset="{WIKI_BASE}\\1"', body_html)
+    # Make all relative /images/ and /w/ URLs absolute so browsers load from wiki.gg
+    # This covers src, srcset (which has multiple comma-separated URLs), href, etc.
+    body_html = body_html.replace('"/images/', f'"{WIKI_BASE}/images/')
+    body_html = body_html.replace('"/w/', f'"{WIKI_BASE}/w/')
+    body_html = body_html.replace(" /images/", f" {WIKI_BASE}/images/")
     # Remove edit links
     body_html = re.sub(
         r'<span class="mw-editsection">.*?</span></span>', "", body_html, flags=re.DOTALL
