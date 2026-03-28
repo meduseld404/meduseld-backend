@@ -127,7 +127,7 @@ h1 {{ color: #e6c65c; }}
   <a href="https://services.meduseld.io">\u2190 Back to Services</a>
 </nav>
 <div class="content">
-<div style="text-align:center;margin-bottom:20px"><img src="https://logicservers.com/img/xicarus-survival-logo.png.pagespeed.ic.cBJIM4eKVo.png" alt="Icarus" style="max-height:160px"></div>
+<div style="text-align:center;margin-bottom:20px"><img src="https://logicservers.com/img/xicarus-survival-logo.png.pagespeed.ic.cBJIM4eKVo.png" alt="Icarus" style="max-height:160px;max-width:100%"></div>
 <input type="text" class="search-box" placeholder="Search {len(page_files)} pages..." id="search" autocomplete="off">
 <div class="page-count" id="count">{len(page_files)} pages in {len(sorted_cats)} categories</div>
 <div id="categories">
