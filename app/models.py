@@ -582,6 +582,7 @@ class DndLink(db.Model):
     label = db.Column(db.String(128), nullable=False)
     url = db.Column(db.String(512), nullable=False)
     icon = db.Column(db.String(64), default="bi-link-45deg")
+    image_url = db.Column(db.String(512))
     description = db.Column(db.String(256))
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
@@ -595,6 +596,7 @@ class DndLink(db.Model):
             "label": self.label,
             "url": self.url,
             "icon": self.icon,
+            "image_url": self.image_url,
             "description": self.description,
             "sort_order": self.sort_order,
             "created_by": self.created_by,

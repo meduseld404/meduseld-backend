@@ -5006,6 +5006,7 @@ def check_service(service):
                         label=data["label"].strip(),
                         url=data["url"].strip(),
                         icon=data.get("icon", "bi-link-45deg").strip(),
+                        image_url=data.get("image_url", "").strip() or None,
                         description=data.get("description", "").strip() or None,
                         sort_order=data.get("sort_order", 0),
                         created_by=user.id,
@@ -5048,6 +5049,8 @@ def check_service(service):
                     link.url = data["url"].strip()
                 if "icon" in data:
                     link.icon = data["icon"].strip()
+                if "image_url" in data:
+                    link.image_url = data.get("image_url", "").strip() or None
                 if "description" in data:
                     link.description = data.get("description", "").strip() or None
                 if "sort_order" in data:
