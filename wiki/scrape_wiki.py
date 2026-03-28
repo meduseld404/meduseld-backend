@@ -55,7 +55,16 @@ def api_request(params):
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+            raw = resp.read().decode("utf-8")
+            data = json.loads(raw)
+            # Check for Cloudflare challenge (HTML instead of JSON)
+            if not isinstance(data, dict):
+                log.error("API returned non-dict: %s", type(data))
+                return None
+            return data
+    except json.JSONDecodeError as e:
+        log.error("API returned non-JSON (likely Cloudflare challenge): %s", e)
+        return None
     except Exception as e:
         log.error("API request failed: %s (url=%s)", e, url)
         return None
@@ -293,23 +302,31 @@ def main():
     # Fetch each page
     log.info("Fetching %d pages...", len(titles))
     fetched = 0
+    failed = []
     for i, title in enumerate(titles):
         html, display_title = fetch_page_html(title)
         if html is None:
             log.warning("Failed to fetch: %s", title)
+            failed.append(title)
             continue
 
         filename = title_to_filename(title)
         full_html = build_page_html(title, display_title, html, css, titles)
-        (pages_dir / filename).write_text(full_html, encoding="utf-8")
+        out_path = pages_dir / filename
+        out_path.write_text(full_html, encoding="utf-8")
         fetched += 1
+
+        if title == "Main Page":
+            log.info("Main Page saved as %s (%d bytes)", filename, out_path.stat().st_size)
 
         if (i + 1) % 50 == 0:
             log.info("Progress: %d/%d pages fetched", i + 1, len(titles))
 
         time.sleep(CRAWL_DELAY)
 
-    log.info("Fetched %d pages", fetched)
+    log.info("Fetched %d pages (%d failed)", fetched, len(failed))
+    if failed:
+        log.info("Failed pages: %s", ", ".join(failed[:20]))
 
     if fetched < 1:
         log.error("No pages fetched successfully")
