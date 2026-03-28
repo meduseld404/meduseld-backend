@@ -2006,7 +2006,9 @@ def start():
                 )
 
                 last_update_time = time.time()
-                last_update_output = result.stdout + "\n" + result.stderr
+                last_update_output = result.stdout
+                if result.stderr:
+                    logger.warning("Update stderr: %s", result.stderr.strip())
 
                 if result.returncode == 0:
                     last_update_status = "success"
@@ -2202,7 +2204,9 @@ def restart():
                 )
 
                 last_update_time = time.time()
-                last_update_output = result.stdout + "\n" + result.stderr
+                last_update_output = result.stdout
+                if result.stderr:
+                    logger.warning("Update stderr: %s", result.stderr.strip())
 
                 if result.returncode == 0:
                     last_update_status = "success"
