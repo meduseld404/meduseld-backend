@@ -579,7 +579,7 @@ When the regular game ends with two or more players tied for first place, sudden
 - Ranked scoreboard with medal emojis (🥇🥈🥉) for top 3, numbered for rest
 - Each row shows avatar, display name, "You" badge for current user, score/total
 - Winner row has gold border highlight
-- "Results recorded to leaderboard" badge (server persists all player results as TriviaWin rows)
+- "Results recorded to leaderboard" badge (server persists all player results as TriviaWin rows, with `won=True` only for the winner(s))
 - Host sees "Play Again" button → opens a settings form (pre-filled with previous game's settings) to pick new category, difficulty, question count, and max players. Submitting emits `play_again` with new settings, which resets the lobby to waiting state and brings all connected players back to the lobby view via `lobby_reset` event. The lobby code stays the same — no need to rejoin.
 - Non-host players see "Waiting for host..." message on the results screen until the host starts a new round
 - "Leave Lobby" button → emits `leave_lobby`, returns to browser. Available to all players.
