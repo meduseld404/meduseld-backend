@@ -872,7 +872,8 @@ Session hub, DM soundboard, and campaign wiki for D&D sessions. Any authenticate
 ### Party Roster
 
 - Grid of character cards showing each user's D&D character
-- Each card: Discord avatar, character name, player display name, race/class/level, "View Sheet" button (links to D&D Beyond character URL)
+- Each card: character portrait or Discord avatar, character name, player display name, race/class/level, "View Sheet" button (links to D&D Beyond character URL), delete button (owner or admin)
+- Character portrait auto-matching: if the character's first name (lowercased) matches a portrait file in `dnd/` (e.g. `dnd/korrak.png`), the card displays that portrait as an 80px circular headshot (cropped from full-body with `object-position: top`) instead of the Discord avatar. Current portraits: draconis, drayvn, finnan, korrak, thalmior, tharok, vael.
 - "My Character" button → opens modal to create/update own character (one character per user, upsert)
 - Modal fields: character name, race, class, level (1-20), D&D Beyond character URL
 - Pre-fills with existing character data on modal open
