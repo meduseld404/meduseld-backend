@@ -3105,14 +3105,9 @@ def _check_achievements_inner(user):
         _award("trivia_streak_3")
 
     # Big Brain — 80%+ on hard difficulty
-    hard_win = TriviaWin.query.filter(
-        TriviaWin.user_id == user.id,
-        TriviaWin.total_questions > 0,
-        TriviaWin.category.like("%hard%"),
-    ).all()
     # Category from Open Trivia DB doesn't include difficulty, so check score ratio
     # We store category name, not difficulty. Need to check via score threshold on any game.
-    # Actually, we don't store difficulty. Let's check for 80%+ score on any game with 10+ questions.
+    # Check for 80%+ score on any game with 10+ questions.
     high_score_game = TriviaWin.query.filter(
         TriviaWin.user_id == user.id,
         TriviaWin.total_questions >= 10,
@@ -3870,7 +3865,6 @@ def check_service(service):
 
             # Get all unlocked achievements
             unlocked = UserAchievement.query.filter_by(user_id=user.id).all()
-            unlocked_list = [a.to_dict() for a in unlocked]
             unlocked_ids = set(a.achievement_id for a in unlocked)
 
             # Build full achievement list with locked/unlocked status
