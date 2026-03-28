@@ -501,7 +501,7 @@ Multiplayer trivia game with lobby system using WebSocket (Flask-SocketIO). User
 ### Leaderboard (Podium)
 
 - Fetches aggregated win data from `GET https://health.meduseld.io/check/trivia-leaderboard`
-- Top 3 users displayed as podium cards with medal emojis (🥇🥈🥉), avatar, display name, win count, and total correct answers
+- Top 3 users displayed as podium cards with medal emojis (🥇🥈🥉), avatar, display name, and win count
 - Users ranked 4+ shown in a table below the podium
 - Refreshes automatically after each multiplayer game completes
 
