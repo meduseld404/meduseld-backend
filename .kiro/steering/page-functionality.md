@@ -541,7 +541,7 @@ Multiplayer trivia game with lobby system using WebSocket (Flask-SocketIO). User
 ### Multiplayer Gameplay
 
 - Host clicks "Start Game" → server fetches questions from Open Trivia DB (or REST Countries API for flags), emits `game_starting` with countdown (5 seconds)
-- Countdown displayed as large animated number
+- Countdown displayed as large animated number with category badge (if a specific category was selected)
 - Each question delivered via `question` event with shuffled answers and 20-second time limit
 - Timer bar animates from full (gold) → yellow (50%) → red (25%) → empty
 - For standard questions: answer buttons use `data-idx` attributes and click event listeners (avoids HTML entity escaping issues with inline onclick). Clicking an answer: disables all buttons, highlights selection, emits `submit_answer` with the raw answer string.

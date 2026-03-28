@@ -685,7 +685,7 @@ Events (server → client):
 - `player_joined` / `player_left` — Player list updates. Data: `{user_id, display_name, lobby}`.
 - `lobby_closed` — Lobby was closed. Data: `{reason}`.
 - `kicked` — You were kicked. Data: `{reason}`.
-- `game_starting` — Countdown before first question. Data: `{countdown, total_questions}`.
+- `game_starting` — Countdown before first question. Data: `{countdown, total_questions, category_name}`.
 - `question` — New question. Data: `{index, question, category, difficulty, answers, time_limit}`.
 - `player_answered` — Someone answered (not what). Data: `{user_id, question_index, lobby}`.
 - `answer_reveal` — Correct answer + per-player results. Data: `{correct_answer, player_results, question_index}`.
