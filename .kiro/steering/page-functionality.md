@@ -87,12 +87,11 @@ Each active service card has a status indicator badge that shows Online/Offline/
    - Description: "Funny moments, clips, and memorable screenshots from our adventures."
    - No status badge (static page, not health-checked)
 
-9. **Game Wiki**
+9. **Wikicarus (Game Wiki)**
    - Status badge: checks wiki health via `health.meduseld.io/check/wiki-health` (proxied to wiki microservice on port 5005), shows Online (with page count) or Offline
-   - "Open [Game] Wiki" button → links to `https://wiki.meduseld.io` (disabled when offline)
-   - Title and description dynamically set from `CONFIG.gameName` (currently "Icarus Wiki")
-   - Description: "Community wiki with guides, tips, and information for [game]."
-   - Status check runs alongside the main health check polling (every 5 seconds) but hits the Flask health proxy directly instead of the Cloudflare Worker
+   - "Open Wikicarus" button → links to `https://wiki.meduseld.io` (disabled when offline)
+   - Title: "Wikicarus" (static, not dynamic from CONFIG.gameName)
+   - Description dynamically set from `CONFIG.gameName` (currently "Community wiki with guides, tips, and information for Icarus.")
 
 10. **D&D Companion**
     - "Open D&D Companion" button → links to `https://dnd.meduseld.io`
