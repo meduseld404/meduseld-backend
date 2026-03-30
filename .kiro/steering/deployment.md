@@ -86,10 +86,13 @@ Served via Cloudflare Pages at `/srv/meduseld-site`
   - Sound files stored at `/srv/media/dnd/sounds/`, served via `/check/dnd-sound-file/<filename>`
   - Data from `health.meduseld.io/check/dnd-*` endpoints
 
-- **lembas.meduseld.io** (lembas/index.html)
+- **lembas.meduseld.io** (React + Vite app in `lembas` repo)
   - Shopping list PWA, fully client-side with localStorage
   - No authentication required, no backend
+  - React 19 + Vite 6 frontend (same structure as ExSpire)
+  - Features: drag-to-reorder, swipe-to-delete, tap-to-edit with price/aisle fields
   - PWA with service worker for offline support
+  - Repo: `git@github.com:meduseld-io/lembas.git` (separate `lembas` workspace folder)
 
 - **wiki.meduseld.io** (served by wiki microservice)
   - Static mirror of the Icarus wiki from `icarus.wiki.gg`

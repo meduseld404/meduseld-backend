@@ -981,18 +981,38 @@ Served by standalone wiki microservice (`wiki/wiki_server.py`) on port 5005 from
 
 ## lembas.meduseld.io — Lembas (Shopping List PWA)
 
-File: `meduseld-site/lembas/index.html`
+Repo: `lembas/frontend/` (React + Vite app, separate `lembas` workspace folder)
 
-Standalone PWA shopping list app. Fully client-side with localStorage persistence. No authentication required, no backend.
+Standalone PWA shopping list app built with React. Fully client-side with localStorage persistence. No authentication required, no backend. Designed for phone-first usage.
 
 - Two tabs: Shopping List and Regulars
-- Shopping List tab: add items via text input, adjust quantity (+/-), check off items, clear checked items
-- Typing in the input shows autocomplete suggestions from saved regular items
+
+### Shopping List Tab
+
+- Add items via text input with autocomplete suggestions from saved regular items
+- Drag-to-reorder items via grip handle on the left (uses `@dnd-kit`, works on touch and desktop)
+- Tap/click any item to open edit modal with: name, quantity, last price, aisle/store location
+- Edit modal slides up as a bottom sheet on mobile, centers on desktop. Close via Escape, overlay click, or Cancel button.
+- Swipe left to delete on mobile (red "Delete" background reveals as you swipe past threshold)
+- Quantity controls (+/-) inline on each item
 - Star button on each item toggles it as a "regular" (saved for future lists)
-- Regulars tab: grid of starred items. Tap to add back to current list, x to remove from regulars
+- Check off items (checked items move to "Done" section at reduced opacity with strikethrough)
+- "Clear checked" button removes all checked items
+- Price and aisle metadata shown as subtle text below the item name when set
+
+### Regulars Tab
+
+- Grid of starred items sorted alphabetically
+- Tap to add back to current list (highlighted green when already in list)
+- X button to remove from regulars
+
+### Technical Details
+
+- React 19 + Vite 6, same project structure as ExSpire (`frontend/` folder with `src/`, `public/`)
 - Service worker for offline PWA support (network-first with cache fallback)
 - PWA installable via manifest (standalone display mode)
 - All data stored in browser localStorage (`lembas_items`, `lembas_regulars`)
+- Backward compatible with old vanilla app localStorage data (migrates items to include price/aisle fields)
 
 ---
 
