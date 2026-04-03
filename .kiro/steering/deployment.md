@@ -87,10 +87,11 @@ Served via Cloudflare Pages at `/srv/meduseld-site`
   - Data from `health.meduseld.io/check/dnd-*` endpoints
 
 - **lembas.meduseld.io** (React + Vite app in `lembas` repo)
-  - Shopping list PWA, fully client-side with localStorage
+  - Shopping list and to-do PWA, fully client-side with localStorage
+  - Two modes: To-Do (default) and Shopping, switchable via header icons
   - No authentication required, no backend
   - React 19 + Vite 6 frontend (same structure as ExSpire)
-  - Features: drag-to-reorder, swipe-to-delete, tap-to-edit with price/aisle fields
+  - Features: long-press to drag reorder, drag-to-delete zone, tap-to-edit with price/aisle fields (shopping), simple checklist with clear completed (to-do)
   - PWA with service worker for offline support
   - Repo: `git@github.com:meduseld-io/lembas.git` (separate `lembas` workspace folder)
 

@@ -979,39 +979,73 @@ Served by standalone wiki microservice (`wiki/wiki_server.py`) on port 5005 from
 
 ---
 
-## lembas.meduseld.io — Lembas (Shopping List PWA)
+## lembas.meduseld.io — Lembas (Shopping List & To-Do PWA)
 
 Repo: `lembas/frontend/` (React + Vite app, separate `lembas` workspace folder)
 
-Standalone PWA shopping list app built with React. Fully client-side with localStorage persistence. No authentication required, no backend. Designed for phone-first usage.
+Standalone PWA with two modes: To-Do (default) and Shopping. Fully client-side with localStorage persistence. No authentication required, no backend. Designed for phone-first usage.
 
-- Two tabs: Shopping List and Regulars
+### Mode Switcher
 
-### Shopping List Tab
+- Two icon buttons in the header (between the title and help button): checklist icon (To-Do) and cart icon (Shopping)
+- Active mode is highlighted with a white background pill
+- Default mode is To-Do
+- Mode persisted in `lembas_mode` localStorage key
+- Each mode has its own separate data (to-do tasks vs shopping items)
+- Shopping mode shows the Shopping List / Regulars tab bar; To-Do mode has no tabs
+
+### To-Do Mode (default)
+
+- Simple task list with add input and "Add" button
+- Tasks header shows pending count
+- Tap checkbox to toggle done/undone - completed tasks move to a "Completed" section at the bottom
+- Drag-to-reorder via long press (300ms, same as shopping mode, uses `@dnd-kit`)
+- During drag, a red delete drop zone appears at the bottom
+- "Clear" button in the completed section header removes all completed tasks
+- Empty state shows a checklist icon with "No tasks yet" message
+- Data stored in `lembas_todos` localStorage key
+
+### Shopping List Tab (Shopping mode)
 
 - Add items via text input with autocomplete suggestions from saved regular items
-- Drag-to-reorder items via grip handle on the left (uses `@dnd-kit`, works on touch and desktop)
+- Estimated shop total shown as a green pill badge next to "Items" header (sum of all item prices x quantities, only visible when items have prices)
+- Drag-to-reorder items via long press (300ms hold activates drag, uses `@dnd-kit`, works on touch and desktop)
 - Tap/click any item to open edit modal with: name, quantity, last price, aisle/store location
 - Edit modal slides up as a bottom sheet on mobile, centers on desktop. Close via Escape, overlay click, or Cancel button.
-- Swipe left to delete on mobile (red "Delete" background reveals as you swipe past threshold)
+- During drag, a red delete drop zone appears at the bottom of the screen - drop item on it to delete
 - Quantity controls (+/-) inline on each item
 - Star button on each item toggles it as a "regular" (saved for future lists)
-- Check off items (checked items move to "Done" section at reduced opacity with strikethrough)
-- "Clear checked" button removes all checked items
+- Checking an item moves it into a shop grouped by today's date (not a simple done list)
 - Price and aisle metadata shown as subtle text below the item name when set
 
-### Regulars Tab
+### Shop History
+
+- "Previous Shops" section below the active list shows completed shops
+- Each shop card shows: date, item count, and total price (if items have prices)
+- Tap a shop card to expand and see individual items with quantities and prices
+- Drag an uncompleted item onto a past shop card to add it retroactively (card highlights green on hover)
+- Delete a shop with the trash icon on the card
+- Shops persisted in `lembas_shops` localStorage key
+
+### Regulars Tab (Shopping mode)
 
 - Grid of starred items sorted alphabetically
 - Tap to add back to current list (highlighted green when already in list)
 - X button to remove from regulars
+
+### Help Modal
+
+- Question mark button in header top-right opens a help modal
+- Bottom sheet on mobile, centered on desktop
+- Content adapts to current mode: shows to-do instructions in To-Do mode, shopping instructions in Shopping mode
+- First section always explains the mode switcher
 
 ### Technical Details
 
 - React 19 + Vite 6, same project structure as ExSpire (`frontend/` folder with `src/`, `public/`)
 - Service worker for offline PWA support (network-first with cache fallback)
 - PWA installable via manifest (standalone display mode)
-- All data stored in browser localStorage (`lembas_items`, `lembas_regulars`)
+- All data stored in browser localStorage (`lembas_items`, `lembas_regulars`, `lembas_shops`, `lembas_todos`, `lembas_mode`)
 - Backward compatible with old vanilla app localStorage data (migrates items to include price/aisle fields)
 
 ---
