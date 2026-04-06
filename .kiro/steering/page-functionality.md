@@ -1002,6 +1002,7 @@ Standalone PWA with two modes: To-Do (default) and Shopping. Fully client-side w
 - Autocomplete suggestions from saved regulars appear as you type
 - Tasks header shows pending count
 - Tap checkbox to toggle done/undone - completed tasks move to a "Completed" section at the bottom
+- Tap a task name to open edit modal (rename or delete)
 - Star button on each task to save as a regular
 - Drag-to-reorder via grip handle icon (⠿) on the left of each task (uses `@dnd-kit`)
 - During drag, a red delete drop zone appears at the bottom
